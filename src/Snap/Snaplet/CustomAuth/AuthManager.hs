@@ -8,6 +8,7 @@ module Snap.Snaplet.CustomAuth.AuthManager
     AuthManager(..)
   , IAuthBackend(..)
   , UserData(..)
+  , HasAuth(..)
   ) where
 
 import Data.ByteString
@@ -19,14 +20,16 @@ import Snap.Snaplet.CustomAuth.Types
 class UserData a where
   extractUser :: a -> AuthUser
 
-class UserData u => IAuthBackend u r | r -> u where
-  login :: r -> Text -> Text -> IO (Either AuthFailure u)
-  logout :: r -> Text -> IO ()
-  recover :: r -> Text -> IO (Either AuthFailure u)
+class UserData u => HasAuth u a where
+  extractAuth :: a -> AuthManager u b
 
-data AuthManager u b = forall r. IAuthBackend u r => AuthManager
-  { backend :: r
-  , activeUser :: UserData u => Maybe u
+class UserData u => IAuthBackend u b | b -> u where
+  login :: Text -> Text -> Handler b (AuthManager u b) (Either AuthFailure u)
+  logout :: Text -> Handler b (AuthManager u b) ()
+  recover :: Text -> Handler b (AuthManager u b) (Either AuthFailure u)
+
+data AuthManager u b = IAuthBackend u b => AuthManager
+  { activeUser :: UserData u => Maybe u
   , sessionCookieName :: ByteString
   , userField :: ByteString
   , passwordField :: ByteString

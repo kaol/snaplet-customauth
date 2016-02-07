@@ -42,3 +42,13 @@ pass a plain hasql pool to my authentication library.
 
 Running this code requires getting Piperka's schema.  My plan is to
 work on snaplet-customauth along with the new Piperka backend for now.
+
+## Update 2016-02-07
+
+This version includes a new Snap.Snaplet.Hasql implementation, for the
+new Hasql 0.19 version.  My idea is to wrap all handlers requiring a
+DB handle with code that acquires a handle and do everything in one
+transaction, including authentication.  This means further divergence
+from Snap.Snaplet.Auth since there's no longer a backend parameter but
+it's expected that the backend implementation gets whatever it needs
+for authentication from the site's own handler.

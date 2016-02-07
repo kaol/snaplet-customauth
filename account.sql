@@ -36,3 +36,19 @@ BEGIN
   END IF;
 END;
 $$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION recover_session(session uuid, OUT o_uid integer, OUT o_name text, OUT new_comics integer, OUT csrf_ham uuid) AS $$
+BEGIN
+  SELECT uid, name FROM p_session JOIN users USING (uid) INTO o_uid, o_name WHERE ses = session AND token_for IS NULL;
+  IF o_uid IS NOT NULL THEN
+    UPDATE p_session SET last_active = NOW() WHERE ses=session;
+    IF (select last_active < NOW() - time '0:10' FROM users WHERE uid=o_uid) THEN
+      UPDATE users SET seen_comics_before = COALESCE(last_active,NOW()), last_active = NOW() WHERE o_uid=uid;
+    ELSE
+      UPDATE users SET last_active = NOW() WHERE o_uid=uid;
+    END IF;
+  SELECT COUNT(*) INTO new_comics from comics, users WHERE users.uid=o_uid AND comics.added_on > users.seen_comics_before;
+  SELECT ses FROM p_session WHERE token_for=session INTO csrf_ham;
+END IF;
+END;
+$$ LANGUAGE plpgsql;

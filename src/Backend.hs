@@ -8,40 +8,72 @@
 
 module Backend ( ) where
 
-import Data.Tuple.Curry
 import qualified Data.Text as T
-import qualified Control.Exception as E
-import qualified Hasql as H
-import qualified Hasql.Postgres as HP
-import Hasql.Backend
 import Data.Int
 import Data.UUID
 import Data.Text as T
 import Snap.Snaplet.CustomAuth
+import Snap.Snaplet.Hasql
 import Application
+import Hasql.Query
+import qualified Hasql.Encoders as EN
+import qualified Hasql.Decoders as DE
+import Hasql.Session (query)
+import Data.Functor
+import Snap.Snaplet
+import Data.Functor.Contravariant
+import Data.Monoid
 
-instance IAuthBackend MyData (H.Pool HP.Postgres) where
+encodeLoginPasswd :: EN.Params (T.Text, T.Text)
+encodeLoginPasswd =
+  contramap fst (EN.value EN.text) <>
+  contramap snd (EN.value EN.text)
 
-  login pool u pwd = flip E.catch onFailure $ do
-    res <- H.session pool $ do
-      H.tx (Just (H.Serializable, Just True)) $ loginQuery u pwd
-    return $ either (Left . AuthError . show) (maybe (Left AuthFailure) Right) res
+encodeSessionToken :: EN.Params T.Text
+encodeSessionToken = contramap id (EN.value EN.text)
 
-  logout pool t = do
-    H.session pool $ do
-      H.tx (Just (H.Serializable, Just True)) $ H.unitEx $ [H.stmt|delete from p_session where ses=?|] t
+userRow :: DE.Row MyData
+userRow =
+  MyData
+  <$> DE.value DE.int4
+  <*> DE.value DE.text
+  <*> DE.value DE.uuid
+  <*> DE.value DE.uuid
+
+instance IAuthBackend MyData App where
+
+  login u pwd = withTop db $ do
+    usr <- run $ query (u, pwd) loginUserPasswd
+    return $ either (Left . AuthError . show) (maybe (Left AuthFailure) Right) usr
+      where
+        loginUserPasswd = statement sql encode decode True
+        encode = encodeLoginPasswd
+        decode = DE.maybeRow userRow
+        sql = "select o_uid, name, p_session, csrf_ham from auth_login($1, $2) join users on o_uid=uid"
+
+  logout t = withTop db $ do
+    run $ query t deleteSession
     return ()
+      where
+        deleteSession = statement sql encode DE.unit True
+        encode = encodeSessionToken
+        sql = "delete from p_session where ses=$1"
 
-  recover pool t = flip E.catch onFailure $ do
-    res <- H.session pool $ do
-      let tokenUuid = fromText t
-      H.tx (Just (H.Serializable, Just True)) $ do
-        cred :: Maybe (Int32, Text, UUID) <- H.maybeEx $ [H.stmt|select uid, name, csrf_ham from recover_session(?) join users on (o_uid=uid)|] t
-        return $ do
-          ses <- tokenUuid
-          cred' <- cred
-          return $ (uncurryN MyData . \(a,b,c) -> (a,b,ses,c)) cred'
-    return $ either (Left . AuthError . show) (maybe (Left AuthFailure) Right) res
+  recover t = withTop db $ do
+    let tokenUuid = fromText t
+    case tokenUuid of
+     Nothing -> return $ Left AuthFailure
+     Just token -> do
+       usr <- run $ query token recoverSession
+       return $ either (Left . AuthError . show) (maybe (Left AuthFailure) Right) usr
+         where
+           recoverSession = statement sql encode decode True
+           encode = contramap id (EN.value EN.uuid)
+           decode = DE.maybeRow $ (\a b c -> MyData {uid=a, uname=b, usession=token, ucsrfToken=c})
+                    <$> DE.value DE.int4
+                    <*> DE.value DE.text
+                    <*> DE.value DE.uuid
+           sql = "select uid, name, csrf_ham from recover_session($1) join users on (o_uid=uid)"
 
 instance UserData MyData where
   extractUser MyData{..} = AuthUser
@@ -49,12 +81,3 @@ instance UserData MyData where
     , session = toText usession
     , csrfToken = toText ucsrfToken
     }
-
-onFailure :: Monad m => E.SomeException -> m (Either AuthFailure a)
-onFailure e = return $ Left $ AuthError $ show e
-
-loginQuery :: (CxValue c Text, CxValue c Int32, CxValue c UUID) => Text -> Text -> H.Tx c s (Maybe MyData)
-loginQuery u pwd = do
-  cred :: Maybe (Int32, Text, UUID, UUID) <- H.maybeEx $ [H.stmt|select o_uid, name, p_session, csrf_ham from auth_login(?, ?) join users on o_uid=uid|] u pwd
-  return $ fmap (uncurryN MyData) cred
-
