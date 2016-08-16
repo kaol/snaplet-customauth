@@ -2,6 +2,7 @@ module Snap.Snaplet.CustomAuth
   (
     AuthManager(..)
   , AuthUser(..)
+--  , AuthSettings(..)
   , AuthFailure(..)
   , IAuthBackend(..)
   , UserData(..)
@@ -9,7 +10,6 @@ module Snap.Snaplet.CustomAuth
   , loginUser
   , logoutUser
   , recoverSession
-  , combinedLoginRecover
   , currentUser
   , authInit
     -- Heist

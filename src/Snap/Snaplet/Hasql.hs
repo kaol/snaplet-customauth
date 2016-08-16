@@ -33,7 +33,7 @@ releaseHasql :: (HasHasql m, MonadIO m) => m ()
 releaseHasql = do
   s <- getHasqlState
   case s of
-   (HasqlSettings s) -> return ()
+   (HasqlSettings _) -> return ()
    (HasqlConnection c s') -> do
      liftIO $ do
        S.run commit c
@@ -45,10 +45,10 @@ run s = do
   c' <- getHasqlState
   case c' of
    HasqlConnection c _ -> liftIO $ S.run s c
+   HasqlSettings _ -> error "connection not open"
 
 wrapDbOpen :: (HasHasql (Handler b v)) => Initializer b v ()
-wrapDbOpen = do
-  wrapSite bracketDbOpen
+wrapDbOpen = wrapSite bracketDbOpen
 
 addRoutesDbOpen :: (HasHasql (Handler b v)) =>
                    [(ByteString, Handler b v ())] -> Initializer b v ()

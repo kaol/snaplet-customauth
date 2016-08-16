@@ -4,8 +4,6 @@ module Snap.Snaplet.CustomAuth.Heist where
 
 import Control.Lens
 import Control.Monad.Trans
-import qualified Data.Text as T
-import Data.Monoid
 import qualified Text.XmlHtml as X
 import Heist
 import qualified Heist.Interpreted as I
@@ -15,6 +13,7 @@ import Snap.Snaplet.Heist
 import Snap.Snaplet.CustomAuth.Handlers
 import Snap.Snaplet.CustomAuth.Types
 import Snap.Snaplet.CustomAuth.AuthManager
+import Data.Map.Syntax
 
 
 addAuthSplices

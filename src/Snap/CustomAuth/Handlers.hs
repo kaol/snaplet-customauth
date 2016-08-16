@@ -8,10 +8,14 @@
 
 module Snap.Snaplet.CustomAuth.Handlers where
 
+--import Control.Applicative
 import Control.Error.Util
+--import Control.Lens
 import Control.Monad.Trans
+--import Control.Monad.Trans.Either
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
+--import Control.Monad.Trans.Reader
 import Control.Monad.State
 import Data.Maybe
 import Data.ByteString hiding (all)
@@ -49,8 +53,9 @@ logoutUser = do
   sesName <- gets sessionCookieName
   runMaybeT $ do
     ses <- MaybeT $ getCookie sesName
-    lift $ expireCookie ses >> logout (decodeUtf8 $ cookieValue ses)
+    lift $ logout (decodeUtf8 $ cookieValue ses)
   modify $ \mgr -> mgr { activeUser = Nothing }
+  expireCookie sesName Nothing
 
 recoverSession
   :: (UserData u, IAuthBackend u b)

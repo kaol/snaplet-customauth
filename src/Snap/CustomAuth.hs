@@ -1,4 +1,4 @@
-module Snap.Snaplet.CustomAuth
+module Snap.CustomAuth
   (
     AuthManager(..)
   , AuthUser(..)
@@ -22,7 +22,7 @@ module Snap.Snaplet.CustomAuth
   )
   where
 
-import Snap.Snaplet.CustomAuth.Handlers
-import Snap.Snaplet.CustomAuth.Heist
-import Snap.Snaplet.CustomAuth.Types
-import Snap.Snaplet.CustomAuth.AuthManager
+import Snap.CustomAuth.Handlers
+import Snap.CustomAuth.Heist
+import Snap.CustomAuth.Types
+import Snap.CustomAuth.AuthManager

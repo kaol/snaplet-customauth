@@ -1,7 +1,7 @@
 create extension pgcrypto;
 
 -- Log the user in using name and cleartext password
-CREATE OR REPLACE FUNCTION auth_login(in_name text, in_password text, OUT o_uid integer, OUT new_comics integer, OUT p_session uuid, OUT csrf_ham uuid) AS $$
+CREATE OR REPLACE FUNCTION auth_login(in_name text, in_password text, OUT o_uid integer, OUT new_comics integer, OUT total_new integer, OUT new_in integer, OUT p_session uuid, OUT csrf_ham uuid) AS $$
 DECLARE
   tmp_uid integer;
   pw_matches boolean;
@@ -28,16 +28,16 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION auth_create(in_name text, in_email text, in_password text, OUT o_uid integer, OUT new_comics integer, OUT p_session uuid, OUT csrf_ham uuid) AS $$
+CREATE OR REPLACE FUNCTION auth_create(in_name text, in_email text, in_password text, OUT o_uid integer, OUT p_session uuid, OUT csrf_ham uuid) AS $$
 BEGIN
   IF NOT EXISTS(SELECT 1 FROM users WHERE lower(name)=lower(in_name)) THEN
     INSERT INTO users (name, email, hash) VALUES (in_name, in_email, crypt(in_password, gen_salt('bf', 13))) RETURNING uid INTO o_uid;
-    SELECT * FROM do_login(o_uid) INTO o_uid, new_comics, p_session, csrf_ham;
+    SELECT o_uid, p_session, csrf_ham FROM do_login(o_uid) INTO o_uid, p_session, csrf_ham;
   END IF;
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION recover_session(session uuid, OUT o_uid integer, OUT o_name text, OUT new_comics integer, OUT csrf_ham uuid) AS $$
+CREATE OR REPLACE FUNCTION recover_session(session uuid, OUT o_uid integer, OUT o_name text, OUT new_comics integer, OUT total_new integer, OUT new_in integer, OUT csrf_ham uuid) AS $$
 BEGIN
   SELECT uid, name FROM p_session JOIN users USING (uid) INTO o_uid, o_name WHERE ses = session AND token_for IS NULL;
   IF o_uid IS NOT NULL THEN
@@ -50,5 +50,16 @@ BEGIN
   SELECT COUNT(*) INTO new_comics from comics, users WHERE users.uid=o_uid AND comics.added_on > users.seen_comics_before;
   SELECT ses FROM p_session WHERE token_for=session INTO csrf_ham;
 END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION do_login(in_uid integer, OUT o_uid integer, OUT new_comics integer, OUT total_new integer, OUT new_in integer, OUT p_session uuid, OUT csrf_ham uuid) AS $$
+BEGIN
+  UPDATE users SET last_login = NOW(), seen_comics_before = COALESCE(last_active,NOW()) WHERE in_uid=uid;
+  SELECT COUNT(*) INTO new_comics FROM comics, users WHERE users.uid=in_uid AND comics.added_on > users.seen_comics_before;
+  SELECT token INTO p_session FROM generate_session(in_uid, null);
+  SELECT token INTO csrf_ham FROM generate_session(in_uid, p_session);
+  SELECT SUM(num), COUNT(*) from comic_remain_frag(?) JOIN comics USING (cid) WHERE num > 0 INTO total_new, new_in;
+  o_uid := in_uid;
 END;
 $$ LANGUAGE plpgsql;
