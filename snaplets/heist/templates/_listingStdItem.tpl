@@ -9,11 +9,11 @@
     <h:subscribed check="False">
       <button class="plus" name="subscribe" value="${h:cid}">+</button>
     </h:subscribed>
-    <a href="info.html?cid=${h:cid}">${h:title}</a>
+    <a href="info.html?cid=${h:cid}"><h:title/></a>
   </li>
 </h:item>
 <h:item type="ListingMode">
   <li>
-    <a href="info.html?cid=${h:cid}">${h:title}</a>
+    <a href="info.html?cid=${h:cid}"><h:title/></a>
   </li>
 </h:item>

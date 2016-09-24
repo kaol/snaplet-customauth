@@ -47,8 +47,8 @@ userListingRow =
 listingRow :: DE.Row ListingItem
 listingRow =
   ListingItem
-  <$> DE.value DE.text
-  <*> DE.value DE.int4
+  <$> DE.value DE.int4
+  <*> DE.value DE.text
 
 decodeUpdateListing :: DE.Result (Vector UpdateListingItem)
 decodeUpdateListing = DE.rowsVector updateListingRow
@@ -80,8 +80,8 @@ comicsFetchSubscribed = fromJust . flip lookup table
             \ from subscriptions) as subscribed using (uid, cid) \
             \left join (select distinct uid, cid, 1 as perm_intr \
             \ from permitted_interest) as perm_intr using (uid, cid) \
-            \where title is not null and uid=$1 " <> (orderingSqlPart o) <>
-            " limit $2 offset $3"
+            \where title is not null and uid=$1 order by " <>
+            (orderingSqlPart o) <> " limit $2 offset $3"
 
 updatesFetch :: Ordering -> Query (Int32, Int32, Int32) (Vector UpdateListingItem)
 updatesFetch = fromJust . flip lookup table
@@ -89,8 +89,8 @@ updatesFetch = fromJust . flip lookup table
     table = map (\o -> (o, statement (sql o)
                            encode3 decodeUpdateListing True)) allOrderings
     sql o = "SELECT num, cid, title FROM comics \
-            \JOIN comic_remain_frag($1) USING (cid) WHERE num > 0 " <>
-            (orderingSqlPart o) <> " limit $2 offset $3"
+            \JOIN comic_remain_frag($1) USING (cid) WHERE num > 0 \
+            \order by " <> (orderingSqlPart o) <> " limit $2 offset $3"
 
 profileFetchSubscribed :: Ordering -> Query (Int32, Int32, Int32, Int32) (Vector UserListingItem)
 profileFetchSubscribed = fromJust . flip lookup table
@@ -108,7 +108,7 @@ profileFetchSubscribed = fromJust . flip lookup table
             \ON perm_intr.uid=users.uid AND perm_intr.cid=comics.cid \
             \AND interest <> subscriptions.uid \
             \WHERE subscriptions.uid=$1 \
-            \AND users.uid=$2 " <>
+            \AND users.uid=$2 ORDER BY " <>
             (orderingSqlPart o) <> " LIMIT $3 OFFSET $4"
 
 comicsFetch :: Ordering -> Query (Int32, Int32) (Vector ListingItem)
@@ -116,8 +116,8 @@ comicsFetch = fromJust . flip lookup table
   where
     table = map (\o -> (o, statement (sql o)
                            encode2 decodeListing True)) allOrderings
-    sql o = "SELECT cid, title FROM comics " <> (orderingSqlPart o) <>
-            " LIMIT $1 OFFSET $2"
+    sql o = "SELECT cid, title FROM comics ORDER BY " <>
+            (orderingSqlPart o) <> " LIMIT $1 OFFSET $2"
 
 profileFetch :: Ordering -> Query (Int32, Int32, Int32) (Vector ListingItem)
 profileFetch = fromJust . flip lookup table
@@ -126,8 +126,8 @@ profileFetch = fromJust . flip lookup table
                            encode3 decodeListing True)) allOrderings
     sql o = "SELECT cid, title FROM comics \
             \JOIN subscriptions USING (cid) \
-            \WHERE uid=$1 " <> (orderingSqlPart o) <>
-            " LIMIT $2 OFFSET $3"
+            \WHERE uid=$1 ORDER BY " <>
+            (orderingSqlPart o) <> " LIMIT $2 OFFSET $3"
 
 graveyardFetch :: Query (Int32, Int32) (Vector ListingItem)
 graveyardFetch = statement sql encode2 decodeListing True

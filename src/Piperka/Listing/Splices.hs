@@ -12,6 +12,7 @@ import Data.ByteString.Read (int)
 import Data.Maybe
 import Data.Text (pack, unpack)
 import qualified Data.Vector as V
+import qualified HTMLEntities.Text as HTML
 import Heist
 import Heist.Compiled as C
 import Heist.Compiled.LowLevel as C
@@ -37,16 +38,15 @@ renderListing
 renderListing runtime = do
   mode <- read . unpack . fromJust . getAttribute "mode" <$> getParamNode
 
-  let success action =
-        deferMap (return . snd)
-        (\action' -> do
-            tpl <- deferMap (return . fst) (C.withSplices (C.callTemplate "_listing")
-                                            (listingParamSplices mode)) action
-            nTpl1 <- C.withSplices (C.callTemplate "_navigate")
-                     (navigateSplices False) action'
-            nTpl2 <- C.withSplices (C.callTemplate "_navigate")
-                     (navigateSplices True) action'
-            return $ nTpl1 <> tpl <> nTpl2) action
+  let success n = do
+        tpl <- C.withSplices (C.callTemplate "_listing")
+               (listingParamSplices mode) (fst <$> n)
+        let n' = snd <$> n
+        nTpl1 <- deferMany (C.withSplices (C.callTemplate "_navigate")
+                            (navigateSplices False)) n'
+        nTpl2 <- deferMany (C.withSplices (C.callTemplate "_navigate")
+                            (navigateSplices True)) n'
+        return $ nTpl1 <> tpl <> nTpl2
 
       failure action = do
         missing <- runMaybeT
@@ -79,8 +79,12 @@ renderListing runtime = do
                                                  <$> user prefs)
         let makeResult param =
               let pathQuery = maybe id addSort paramOrd $ getListingPathQuery mode param
-              in ((prefs, fromIntegral offset, param),
-                  (pathQuery, fromIntegral offset, fromIntegral limit, extractTotal param))
+                  tot = extractTotal param
+                  navParams = if tot <= limit
+                              then Nothing
+                              else Just (pathQuery, fromIntegral offset,
+                                         fromIntegral limit, fromIntegral tot)
+              in ((prefs, fromIntegral offset, param), navParams)
         return $ fmap makeResult lst
 
   C.eitherDeferMap getListingData failure success runtime
@@ -208,13 +212,13 @@ renderItem itemMode itemSplices runtime = do
 listingItemSplices
   :: Splices (RuntimeSplice AppHandler ListingItem -> Splice AppHandler)
 listingItemSplices = mapV (C.pureSplice . C.textSplice) $ do
-  "title" ## title
+  "title" ## HTML.text . title
   "cid" ## pack . show . cid
 
 userListingItemSplices
   :: Splices (RuntimeSplice AppHandler UserListingItem -> Splice AppHandler)
 userListingItemSplices = do
-  "title" ## C.pureSplice . C.textSplice $ title . listing
+  "title" ## C.pureSplice . C.textSplice $ HTML.text . title . listing
   "cid" ## C.pureSplice . C.textSplice $ pack . show . cid . listing
   "followee" ## C.checkedSplice friends
   "subscribed" ## C.checkedSplice subs
@@ -222,6 +226,6 @@ userListingItemSplices = do
 updateListingItemSplices
   :: Splices (RuntimeSplice AppHandler UpdateListingItem -> Splice AppHandler)
 updateListingItemSplices = mapV (C.pureSplice . C.textSplice) $ do
-  "title" ## title . listing
+  "title" ## HTML.text . title . listing
   "cid" ## pack . show . cid . listing
   "new" ## pack . show . new

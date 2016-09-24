@@ -36,7 +36,7 @@ loginUser loginFail loginSucc = do
     passwd <- noteT PasswordMissing $ MaybeT $ (fmap . fmap) decodeUtf8 $ getParam pwdName
     usr <- ExceptT $ login userName passwd
     let udata = extractUser usr
-    let wafer = Cookie sesName (encodeUtf8 $ session udata) Nothing Nothing (Just "/") False True
+    let wafer = Cookie sesName (encodeUtf8 $ session udata) Nothing (Just "localhost") (Just "/") False False
     lift $ modifyResponse $ addResponseCookie wafer
     return usr
   modify $ \mgr -> mgr { activeUser = hush res }
@@ -53,7 +53,7 @@ logoutUser = do
   modify $ \mgr -> mgr { activeUser = Nothing }
 
 recoverSession
-  :: (UserData u, IAuthBackend u b)
+  :: (Show u, UserData u, IAuthBackend u b)
   => Handler b (AuthManager u b) ()
 recoverSession = do
   sesName <- gets sessionCookieName
@@ -66,7 +66,7 @@ recoverSession = do
 -- Recover if session token is present.  Login if login+password are
 -- present.
 combinedLoginRecover
-  :: (UserData u, IAuthBackend u b)
+  :: (Show u, UserData u, IAuthBackend u b)
   => (AuthFailure -> Handler b (AuthManager u b) ())
   -> Handler b (AuthManager u b) (Maybe u)
 combinedLoginRecover loginFail = do

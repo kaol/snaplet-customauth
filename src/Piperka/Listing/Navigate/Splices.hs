@@ -6,13 +6,12 @@ import Heist
 import Heist.Compiled as C
 import Prelude hiding (Ordering)
 import Data.Text (Text)
-import Network.HTTP.Types.URI (Query, encodePath)
-import Blaze.ByteString.Builder (toByteString)
-import Data.Text.Encoding (decodeLatin1)
+import Network.HTTP.Types.URI (Query)
 import qualified Data.ByteString.Char8 as B
 import Data.Map.Syntax
 
 import Application
+import Piperka.Util (encodePathToText)
 
 navigateSplices
   :: Bool
@@ -51,5 +50,4 @@ offsetHref runtime =
     val <- runtime
     return $ maybe [] (\((path, q), offset) ->
                         let q' = q ++ [("offset", Just $ B.pack $ show offset)] in
-                        [("href", decodeLatin1 $ toByteString $
-                                  encodePath path q')]) val
+                        [("href", encodePathToText path q')]) val

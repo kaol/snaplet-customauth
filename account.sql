@@ -1,5 +1,8 @@
 create extension pgcrypto;
 
+DROP FUNCTION auth_login(text,text);
+DROP FUNCTION do_login(integer);
+DROP FUNCTION recover_session(uuid);
 -- Log the user in using name and cleartext password
 CREATE OR REPLACE FUNCTION auth_login(in_name text, in_password text, OUT o_uid integer, OUT new_comics integer, OUT total_new integer, OUT new_in integer, OUT p_session uuid, OUT csrf_ham uuid) AS $$
 DECLARE
@@ -23,7 +26,7 @@ BEGIN
     IF pw_convert THEN
       UPDATE users SET passwd=null, hash=crypt(in_password, gen_salt('bf', 13)) where uid=tmp_uid;
     END IF;
-    SELECT * FROM do_login(tmp_uid) INTO o_uid, new_comics, p_session, csrf_ham;
+    SELECT * FROM do_login(tmp_uid) INTO o_uid, new_comics, total_new, new_in, p_session, csrf_ham;
   END IF;
 END;
 $$ LANGUAGE plpgsql;
@@ -48,6 +51,8 @@ BEGIN
       UPDATE users SET last_active = NOW() WHERE o_uid=uid;
     END IF;
   SELECT COUNT(*) INTO new_comics from comics, users WHERE users.uid=o_uid AND comics.added_on > users.seen_comics_before;
+-- TODO: precalculate, this adds 30ms (on my dev box) to every page access
+  SELECT SUM(num), COUNT(*) from comic_remain_frag(o_uid) JOIN comics USING (cid) WHERE num > 0 INTO total_new, new_in;
   SELECT ses FROM p_session WHERE token_for=session INTO csrf_ham;
 END IF;
 END;
@@ -59,7 +64,8 @@ BEGIN
   SELECT COUNT(*) INTO new_comics FROM comics, users WHERE users.uid=in_uid AND comics.added_on > users.seen_comics_before;
   SELECT token INTO p_session FROM generate_session(in_uid, null);
   SELECT token INTO csrf_ham FROM generate_session(in_uid, p_session);
-  SELECT SUM(num), COUNT(*) from comic_remain_frag(?) JOIN comics USING (cid) WHERE num > 0 INTO total_new, new_in;
+-- TODO: precalculate, this adds 30ms (on my dev box) to every page access
+  SELECT SUM(num), COUNT(*) from comic_remain_frag($1) JOIN comics USING (cid) WHERE num > 0 INTO total_new, new_in;
   o_uid := in_uid;
 END;
 $$ LANGUAGE plpgsql;

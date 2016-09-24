@@ -18,6 +18,7 @@ import           Data.ByteString (ByteString)
 --import           Snap.Core
 import           Snap.Snaplet
 import           Snap.Snaplet.Heist.Compiled
+import Snap.Snaplet.Session.Backends.CookieSession
 --import           Snap.Util.FileServe
 import           Heist
 --import qualified Heist.Interpreted as I
@@ -48,6 +49,8 @@ staticRoutes =
 app :: SnapletInit App App
 app = makeSnaplet "piperka" "Piperka application." Nothing $ do
   a <- nestSnaplet "" auth $ authInit "_session" "_login" "_password"
+  m <- nestSnaplet "messages" messages $
+       initCookieSessionManager "site_key.txt" "messages" Nothing (Just 3600)
   h <- nestSnaplet "" heist $ heistInit' "templates" $
        emptyHeistConfig
        & hcLoadTimeSplices .~ defaultLoadTimeSplices
@@ -59,4 +62,4 @@ app = makeSnaplet "piperka" "Piperka application." Nothing $ do
   addRoutes routes
 --  addAuthSplices h auth
   wrapSite (<|> bracketDbOpen heistServe)
-  return $ App h a d
+  return $ App h a d m

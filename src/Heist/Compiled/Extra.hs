@@ -10,20 +10,27 @@ import Heist
 import qualified Data.Text as T
 import Text.XmlHtml
 
+defer
+  :: Monad n
+  => (RuntimeSplice n a -> Splice n)
+  -> RuntimeSplice n a
+  -> Splice n
+defer = deferMap return
+
 eitherDeferMap :: Monad n
                => (a -> RuntimeSplice n (Either b c))
                -> (RuntimeSplice n b -> Splice n)
                -> (RuntimeSplice n c -> Splice n)
                -> RuntimeSplice n a -> Splice n
-eitherDeferMap f pfs pff n = do
-  p2 <- newEmptyPromise
-  p3 <- newEmptyPromise
-  actionSuccess <- pfs $ getPromise p2
-  actionFailure <- pff $ getPromise p3
-  return $ yieldRuntime $ do
+eitherDeferMap f pff pfs n = do
+  pf <- newEmptyPromise
+  ps <- newEmptyPromise
+  actionSuccess <- pfs $ getPromise ps
+  actionFailure <- pff $ getPromise pf
+  return $ yieldRuntime $
     either
-      (\x -> putPromise p2 x >> codeGen actionSuccess)
-      (\x -> putPromise p3 x >> codeGen actionFailure) =<< f =<< n
+      (\x -> putPromise pf x >> codeGen actionFailure)
+      (\x -> putPromise ps x >> codeGen actionSuccess) =<< f =<< n
 
 checkedSplice
   :: forall (n :: * -> *) a. Monad n
@@ -51,4 +58,3 @@ conditionalChildren splice test runtime = do
     if (test prefs)
       then codeGen cs
       else mempty
-

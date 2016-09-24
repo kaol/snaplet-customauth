@@ -27,7 +27,7 @@ Executable piperka-snap
     heist                     == 1.0.*,
     MonadCatchIO-transformers >= 0.2.1   && < 0.4,
     mtl                       >= 2       && < 3,
-    transformers              >= 0.3     && < 0.5,
+    transformers              >= 0.4     && < 0.6,
     transformers-compat       >= 0.4     && < 0.5,
     either                    >= 4.4.1   && < 4.5,
     errors                    >= 2       && < 2.1,
@@ -48,7 +48,8 @@ Executable piperka-snap
     http-types                >= 0.9     && < 0.10,
     blaze-builder             >= 0.4     && < 0.5,
     map-syntax                >= 0.2     && < 0.3,
-    vector                    == 0.10.*
+    vector                    == 0.11.*,
+    html-entities             >= 1.1     && < 1.2
 
 
   if flag(old-base)

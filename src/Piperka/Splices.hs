@@ -10,8 +10,12 @@ module Piperka.Splices
 import Heist
 import qualified Heist.Compiled as C
 import qualified Data.Text as T
+import Data.Text (Text)
+import Data.Text.Encoding (encodeUtf8)
 import Snap
+import Data.Monoid
 import Control.Monad.Trans
+import Control.Monad.Trans.Maybe
 import Snap.Snaplet.CustomAuth
 import Backend()
 import qualified Text.XmlHtml as X
@@ -20,11 +24,14 @@ import qualified Heist.Compiled.Extra as C
 
 import Data.Maybe
 import Data.UUID
+import qualified HTMLEntities.Text as HTML
 
 import Application
 import Piperka.Splices.Flavor
 import Piperka.Listing.Splices
 import Piperka.Listing.Types (ViewColumns(..))
+import Piperka.Messages
+import Piperka.Util
 
 defaultUserPrefs :: UserPrefs
 defaultUserPrefs = UserPrefs
@@ -41,13 +48,15 @@ piperkaSplices
   -> Splices (C.Splice AppHandler)
 piperkaSplices a = do
   "piperka" ## renderPiperka (runtimePiperka a)
+  <> messagesSplices
 
 runtimePiperka
   :: SnapletLens App (AuthManager UserPrefs App)
   -> RuntimeSplice AppHandler UserPrefs
 runtimePiperka a = do
-  u <- lift $ withTop a (combinedLoginRecover $ do
-                            const $ redirect' "loginFailed" 303)
+  u <- lift $ withTop a (combinedLoginRecover $ \_ -> do
+                            saveMessage "login failed"
+                            redirect' "/" 303)
   return $ maybe defaultUserPrefs id u
 
 renderPiperka
@@ -55,11 +64,9 @@ renderPiperka
   -> C.Splice AppHandler
 renderPiperka runtime = do
   childNodes <- fmap X.childNodes getParamNode
-  tpl <- C.withSplices
-         (C.callTemplate "_base")
-         (contentSplices childNodes)
-         runtime
-  return $ C.yieldRuntime $ C.codeGen tpl
+  C.withSplices
+    (C.callTemplate "_base")
+    (contentSplices childNodes) `C.defer` runtime
 
 contentSplices
   :: [X.Node]
@@ -73,9 +80,10 @@ contentSplices childNodes = do
      (0,_) -> ""
      (n,m) -> T.pack $ "(" ++ (show n) ++ " new in " ++ (show m) ++ ")"
   "apply-content" ## (C.withSplices (C.runNodeList childNodes) (contentSplices []))
-  "ifLoggedIn" ## C.conditionalChildren
-    (C.withSplices C.runChildren loggedInSplices)
-    (isJust . user)
+  "ifLoggedIn" ## C.deferMany (C.withSplices C.runChildren loggedInSplices) .
+                  \n -> runMaybeT $ do
+                    u <- MaybeT $ user <$> n
+                    return (uname u, ucsrfToken u)
   "ifLoggedOut" ## C.conditionalChildren
     (const C.runChildren)
     (isNothing . user)
@@ -83,13 +91,20 @@ contentSplices childNodes = do
   "externA" ## renderExternA
 
 loggedInSplices
-  :: Splices (RuntimeSplice AppHandler UserPrefs
+  :: Splices (RuntimeSplice AppHandler (Text, UUID)
               -> C.Splice AppHandler)
 loggedInSplices = do
-  "loggedInUser" ## \runtime -> return $ C.yieldRuntimeText $ do
-    u <- fmap user runtime
-    return $ maybe "" uname u
-  "csrf" ## C.pureSplice . C.textSplice $ toText . ucsrfToken . fromJust . user
+  "loggedInUser" ## C.pureSplice . C.textSplice $ HTML.text . fst
+  "csrf" ## C.pureSplice . C.textSplice $ toText . snd
+  "profileLink" ## profileLink
+
+profileLink
+  :: RuntimeSplice AppHandler (Text, UUID)
+  -> C.Splice AppHandler
+profileLink =
+  let mkLink = \prof -> encodePathToText ["profile.html"]
+                        [("name", Just $ encodeUtf8 prof)]
+  in C.pureSplice . C.textSplice $ mkLink . fst
 
 renderExternA
   :: RuntimeSplice AppHandler UserPrefs

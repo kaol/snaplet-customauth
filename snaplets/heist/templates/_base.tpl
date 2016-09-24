@@ -36,14 +36,15 @@
 	    <br/><a href="submit.html">Submit a comic</a>
 	    <br/><a href="browse.html">Browse comics</a>
 	    <h:ifLoggedIn>
-	      You are logged in as <h:loggedInUser/>
+	      <p>You are logged in as <a href="${h:profileLink}"><h:loggedInUser/></a></p>
+	      <a href="updates.html">Check updates</a> <h:unreadStats/>
 	    </h:ifLoggedIn>
 	    <h:ifLoggedOut>
 	      <form method="post" action="updates.html" style="padding-bottom:10px">
 		<p>User:
-		  <br/><input class="login" type="text" name="user" maxlength="40" style="width:140px"/>
+		  <br/><input class="login" type="text" name="_login" maxlength="40" style="width:140px"/>
 		  <br/>Password:<br/>
-		  <input class="login" type="password" name="passwd_clear" maxlength="40" style="width:140px"/>
+		  <input class="login" type="password" name="_password" maxlength="40" style="width:140px"/>
 		  <input id="loginsubmit" type="submit" name="action" value="Login"/>
 		</p>
 	      </form>
@@ -56,6 +57,11 @@
       <div id="maincornerback"></div>
       <div class="main">
 	<div id="notmuch" style="width:1px; height:1px;"></div>
+	<h:ifHasMessage>
+	  <div class="error" id="message">
+	    <h:message/>
+	  </div>
+	</h:ifHasMessage>
 	<h:apply-content/>
       </div>
     </div>

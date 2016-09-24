@@ -17,8 +17,8 @@ import qualified Piperka.Update.Types (total)
 import qualified Piperka.Profile.Types (total)
 
 data ListingItem = ListingItem
-  { title :: Text
-  , cid :: Int32
+  { cid :: Int32
+  , title :: Text
   } deriving (Show, Eq)
 
 data UserListingItem = UserListingItem
@@ -94,14 +94,14 @@ getListingPageName :: ListingMode -> String
 getListingPageName Top = "top.html"
 getListingPageName Browse = "browse.html"
 getListingPageName Profile = "profile.html"
-getListingPageName Update = "update.html"
+getListingPageName Update = "updates.html"
 getListingPageName Graveyard = "graveyard.html"
 
 getListingPathQuery :: ListingMode -> ListingParam -> ([Text], Query)
 getListingPathQuery Top _ = (["top.html"], [])
 getListingPathQuery Browse _ = (["browse.html"], [])
 getListingPathQuery Graveyard _ = (["graveyard.html"], [])
-getListingPathQuery Update _ = (["update.html"], [])
+getListingPathQuery Update _ = (["updates.html"], [])
 getListingPathQuery Profile (ProfileParam prof _) =
   (["profile.html"], [("name", Just $ encodeUtf8 $ name $ profile prof)])
 getListingPathQuery Profile (UserProfileParam prof _) =

@@ -33,5 +33,5 @@ updateOptionsFetch = statement sql encode (DE.singleRow updateOptionsRow) True
   where
     sql = "SELECT (SELECT COUNT(*) FROM comic_remain_frag(users.uid) WHERE num > 0), \
           \bookmark_sort, offset_bookmark_by_one, hold_bookmark \
-          \FROM users WHERE uid=?"
+          \FROM users WHERE uid=$1"
     encode = EN.value EN.int4

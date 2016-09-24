@@ -12,6 +12,7 @@ module Application
   , auth
   , heist
   , db
+  , messages
   ) where
 
 ------------------------------------------------------------------------------
@@ -25,7 +26,7 @@ import Snap.Snaplet
 import Snap.Snaplet.Heist
 import Snap.Snaplet.CustomAuth
 import Snap.Snaplet.Hasql
---import Control.Monad.Trans.Maybe
+import Snap.Snaplet.Session
 import Data.Text as T
 import Data.Int
 import Data.UUID
@@ -47,12 +48,13 @@ data UserPrefs = UserPrefs
   , rows :: Int32
   , columns :: ViewColumns
   , newExternWindows :: Bool
-  }
+  } deriving (Show)
 
 data App = App
   { _heist :: Snaplet (Heist App)
   , _auth :: Snaplet (AuthManager UserPrefs App)
   , _db :: Snaplet Hasql
+  , _messages :: Snaplet SessionManager
   }
 
 makeLenses ''App
