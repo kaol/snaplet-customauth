@@ -1,4 +1,10 @@
 <h:piperka>
   <h2>All comics</h2>
-  <h:listing mode="Browse"/>
+  <h:listing mode="Browse">
+    <h:sortOptions/>
+    <div class="qsearch_container">
+      <h:qSearch/>
+      <h:hilightButton/>
+    </div>
+  </h:listing>
 </h:piperka>

@@ -1,5 +1,7 @@
 create extension pgcrypto;
 
+create type integerpair as ("1" integer, "2" integer);
+
 DROP FUNCTION auth_login(text,text);
 DROP FUNCTION do_login(integer);
 DROP FUNCTION recover_session(uuid);

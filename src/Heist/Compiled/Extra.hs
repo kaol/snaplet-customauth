@@ -4,6 +4,7 @@
 
 module Heist.Compiled.Extra where
 
+import Data.Map.Syntax
 import Heist.Compiled
 import Heist.Compiled.LowLevel
 import Heist
@@ -58,3 +59,13 @@ conditionalChildren splice test runtime = do
     if (test prefs)
       then codeGen cs
       else mempty
+
+checkedAttrSplice
+  :: forall (n :: * -> *) t. Monad n
+  => (t -> Bool)
+  -> RuntimeSplice n t
+  -> Splices (AttrSplice n)
+checkedAttrSplice test runtime = do
+  "checked" ## const $ do
+    val <- runtime
+    return $ if test val then [("checked", "")] else []

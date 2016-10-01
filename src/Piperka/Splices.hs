@@ -28,7 +28,7 @@ import qualified HTMLEntities.Text as HTML
 
 import Application
 import Piperka.Splices.Flavor
-import Piperka.Listing.Splices
+import Piperka.Listing.Render
 import Piperka.Listing.Types (ViewColumns(..))
 import Piperka.Messages
 import Piperka.Util

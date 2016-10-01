@@ -7,7 +7,7 @@ data Profile = Common CommonProfile | Own OwnProfile | Other OtherProfile
              deriving (Show, Eq)
 
 data Privacy = Public | Friends | Private
-             deriving (Show, Eq)
+             deriving (Show, Eq, Ord)
 
 data CommonProfile = CommonProfile
   { uid :: Int32
@@ -16,6 +16,7 @@ data CommonProfile = CommonProfile
   , privacy :: Privacy
   , writeup :: Maybe Text
   , total :: Int32
+  , inComics :: Int32
   } deriving (Show, Eq)
 
 data OwnProfile = OwnProfile

@@ -15,6 +15,7 @@ import Piperka.Profile.Types
 import Piperka.Update.Types (UpdateOptions)
 import qualified Piperka.Update.Types (total)
 import qualified Piperka.Profile.Types (total)
+import Piperka.Profile.Types (Profile(..))
 
 data ListingItem = ListingItem
   { cid :: Int32
@@ -90,7 +91,12 @@ getUpdateParam :: ListingParam -> UpdateOptions
 getUpdateParam (UpdateParam o _) = o
 getUpdateParam _ = error "not possible"
 
-getListingPageName :: ListingMode -> String
+getProfile :: ListingParam -> Profile
+getProfile (ProfileParam x _) = Common x
+getProfile (UserProfileParam x _) = x
+getProfile _ = undefined
+
+getListingPageName :: ListingMode -> Text
 getListingPageName Top = "top.html"
 getListingPageName Browse = "browse.html"
 getListingPageName Profile = "profile.html"

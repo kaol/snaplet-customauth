@@ -9,7 +9,7 @@ import Application hiding (uid, uname)
 import Piperka.Listing
 import Piperka.Listing.Types
 import qualified Piperka.Listing.Types.Ordering as L (Ordering(..))
-import qualified Piperka.Profile.Types as PT (uid, profile, Profile(..))
+import qualified Piperka.Profile.Types as PT
 import Piperka.Update.Types (UpdateOptions)
 import Piperka.Update.Statements
 import Piperka.Profile.Statements
@@ -23,6 +23,7 @@ import Data.Int
 import Data.Maybe
 import Data.Text (Text, toCaseFold)
 import Data.Text.Encoding (decodeUtf8)
+import qualified Data.Vector as V
 import Hasql.Session hiding (run)
 import Heist
 import Snap
@@ -61,19 +62,31 @@ getListing Profile ord offset limit ux = do
                    then ownData uid'
                    else otherData PT.Other $
                         query (name', uid') profileOtherDataFetch
+    ExceptT $ return $ case prof of
+      PT.Other p -> checkSecretProfile p
+      PT.Common p -> checkSecretProfile p
+      _ -> Right ()
     let pUid = PT.uid $ PT.profile prof
-    ExceptT . fmap (either (Left . SqlError) Right) $
-      lift $ withTop db $ run $ maybe
-      (fmap (ProfileParam ((\(PT.Common x) -> x) prof)) $ query
-       (pUid, limit, offset) (profileFetch ord))
-      (\uid' -> fmap (UserProfileParam prof) $ query
-                (pUid, uid', limit, offset)
-                (profileFetchSubscribed ord))
-      uid
+    if PT.perm $ PT.profile prof
+      then ExceptT . fmap (either (Left . SqlError) Right) $
+           lift $ withTop db $ run $ maybe
+           (fmap (ProfileParam (commonToPlain prof)) $ query
+            (pUid, limit, offset) (profileFetch ord))
+           (\uid' -> fmap (UserProfileParam prof) $ query
+                     (pUid, uid', limit, offset)
+                     (profileFetchSubscribed ord))
+           uid
+      else ExceptT $ return $ Right $ maybe
+           (ProfileParam (commonToPlain prof) V.empty)
+           (const $ UserProfileParam prof V.empty) uid
   where
     ownData uid = fmap (Just . PT.Own) $ ExceptT $ lift $ withTop db $
                   run $ query uid profileOwnDataFetch
     otherData f = (fmap . fmap) f . ExceptT . lift . withTop db . run
+    commonToPlain (PT.Common x) = x
+    commonToPlain _ = undefined
+    checkSecretProfile p = let p' = PT.profile p in
+      if PT.privacy p' /= PT.Private then Right () else Left Missing
 
 
 -- Update mode gets its ordering always from user settings.

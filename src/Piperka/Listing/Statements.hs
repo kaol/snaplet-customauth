@@ -24,8 +24,8 @@ parseOrdering _ = TitleAsc
 
 orderingSqlPart :: Ordering -> ByteString
 orderingSqlPart NewDesc = "cid DESC"
-orderingSqlPart UpdateAsc = "(SELECT last_update FROM comics AS c LEFT JOINS crawler_config USING (cid) WHERE c.cid=comics.cid) ASC NULLS LAST, ordering_form(title)"
-orderingSqlPart UpdateDesc = "(SELECT last_update FROM comics AS c LEFT JOINS crawler_config USING (cid) WHERE c.cid=comics.cid) DESC NULLS LAST, ordering_form(title)"
+orderingSqlPart UpdateAsc = "(SELECT last_updated FROM comics AS c LEFT JOIN crawler_config USING (cid) WHERE c.cid=comics.cid) ASC NULLS LAST, ordering_form(title)"
+orderingSqlPart UpdateDesc = "(SELECT last_updated FROM comics AS c LEFT JOIN crawler_config USING (cid) WHERE c.cid=comics.cid) DESC NULLS LAST, ordering_form(title)"
 orderingSqlPart TopDesc = "readers DESC, ordering_form(title)"
 orderingSqlPart TitleAsc = "ordering_form(title)"
 orderingSqlPart UserUpdates = "num ASC, ordering_form(title)"
@@ -73,15 +73,15 @@ comicsFetchSubscribed = fromJust . flip lookup table
   where
     table = map (\o -> (o, statement (sql o)
                            encode3 decodeUserListing True)) allOrderings
-    sql o = "select subscribed, perm_intr, cid, title  \
-            \from comics \
-            \cross join users \
-            \left join (select uid, cid, 1 as subscribed \
-            \ from subscriptions) as subscribed using (uid, cid) \
-            \left join (select distinct uid, cid, 1 as perm_intr \
-            \ from permitted_interest) as perm_intr using (uid, cid) \
-            \where title is not null and uid=$1 order by " <>
-            (orderingSqlPart o) <> " limit $2 offset $3"
+    sql o = "SELECT COALESCE(subscribed, false), COALESCE(perm_intr, false), cid, title  \
+            \FROM comics \
+            \CROSS JOIN users \
+            \LEFT JOIN (SELECT uid, cid, true AS subscribed \
+            \ FROM subscriptions) AS subscribed USING (uid, cid) \
+            \LEFT JOIN (SELECT DISTINCT uid, cid, true AS perm_intr \
+            \ FROM permitted_interest) AS perm_intr USING (uid, cid) \
+            \WHERE title IS NOT NULL AND uid=$1 ORDER BY " <>
+            (orderingSqlPart o) <> " LIMIT $2 OFFSET $3"
 
 updatesFetch :: Ordering -> Query (Int32, Int32, Int32) (Vector UpdateListingItem)
 updatesFetch = fromJust . flip lookup table
@@ -97,18 +97,19 @@ profileFetchSubscribed = fromJust . flip lookup table
   where
     table = map (\o -> (o, statement (sql o)
                            encode4 decodeUserListing True)) allOrderings
-    sql o = "SELECT DISTINCT subscribed, perm_intr, comics.cid, title \
+    sql o = "SELECT * FROM (SELECT DISTINCT COALESCE(subscribed, false), \
+            \COALESCE(perm_intr, false), comics.cid, title \
             \FROM comics JOIN subscriptions USING (cid) \
             \CROSS JOIN users \
-            \LEFT JOIN (SELECT uid, cid, 1 as subscribed FROM subscriptions) \
+            \LEFT JOIN (SELECT uid, cid, true as subscribed FROM subscriptions) \
             \AS subscribed ON subscribed.uid=users.uid \
             \AND subscribed.cid=comics.cid \
             \LEFT JOIN (SELECT uid, cid, interest, \
-            \ 1 AS perm_intr FROM permitted_interest) AS perm_intr \
+            \ true AS perm_intr FROM permitted_interest) AS perm_intr \
             \ON perm_intr.uid=users.uid AND perm_intr.cid=comics.cid \
             \AND interest <> subscriptions.uid \
             \WHERE subscriptions.uid=$1 \
-            \AND users.uid=$2 ORDER BY " <>
+            \AND users.uid=$2) AS x ORDER BY " <>
             (orderingSqlPart o) <> " LIMIT $3 OFFSET $4"
 
 comicsFetch :: Ordering -> Query (Int32, Int32) (Vector ListingItem)
