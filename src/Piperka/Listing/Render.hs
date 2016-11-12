@@ -16,7 +16,7 @@ import Data.Monoid
 import Snap
 import Data.Text.Encoding (encodeUtf8)
 
-import Application
+import Application hiding (prefs)
 import Piperka.Error.Splices
 import Piperka.Listing.Types hiding (listing', listing'')
 import qualified Piperka.Listing.Types.Ordering as L (Ordering(..), orderingToText)
@@ -52,7 +52,8 @@ renderListing runtime = do
                                  (\(_, _, x) -> x) . fst <$> n
                      return $ if havePerm then lst else mempty
                    _ -> return lst
-          codeGen $ hd <> lst'
+          useMinimal <- lift $ isJust <$> getParam "minimal"
+          codeGen $ if useMinimal then lst' else hd <> lst'
 
       failure action = do
         missing <- runMaybeT

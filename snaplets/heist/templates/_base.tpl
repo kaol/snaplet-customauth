@@ -34,7 +34,7 @@
 	    <br/><a href="/blog/">Blog</a>
 	    <br/><a href="top.html">Most popular</a>
 	    <br/><a href="submit.html">Submit a comic</a>
-	    <br/><a href="browse.html">Browse comics</a>
+	    <br/><a href="browse.html">Browse comics</a><h:newLink> (<a h:href=""><h:new/> new</a>)</h:newLink>
 	    <h:ifLoggedIn>
 	      <p>You are logged in as <a href="${h:profileLink}"><h:loggedInUser/></a></p>
 	      <a href="updates.html">Check updates</a> <h:unreadStats/>

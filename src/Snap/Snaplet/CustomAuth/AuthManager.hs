@@ -23,7 +23,7 @@ class UserData a where
 class UserData u => HasAuth u a where
   extractAuth :: a -> AuthManager u b
 
-class UserData u => IAuthBackend u b | b -> u where
+class UserData u => IAuthBackend u b | u -> b where
   login :: Text -> Text -> Handler b (AuthManager u b) (Either AuthFailure u)
   logout :: Text -> Handler b (AuthManager u b) ()
   recover :: Text -> Handler b (AuthManager u b) (Either AuthFailure u)

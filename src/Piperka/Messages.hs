@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Piperka.Messages ( saveMessage, messagesSplices ) where
 
 import Control.Monad.Trans

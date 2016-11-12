@@ -7,12 +7,17 @@
 module Application
   ( MyData(..)
   , UserPrefs(..)
+  , UserPrefsWithStats(..)
   , App(..)
   , AppHandler
+  , RuntimeAppHandler
   , auth
+  , apiAuth
   , heist
   , db
   , messages
+  , taglookup
+  , extlookup
   ) where
 
 ------------------------------------------------------------------------------
@@ -31,7 +36,10 @@ import Data.Text as T
 import Data.Int
 import Data.UUID
 import Control.Monad.State
+import Heist (RuntimeSplice)
+import Heist.Compiled (Splice)
 
+import Piperka.ComicInfo.Types
 ------------------------------------------------------------------------------
 
 data MyData = MyData
@@ -43,18 +51,25 @@ data MyData = MyData
 
 data UserPrefs = UserPrefs
   { user :: Maybe MyData
-  , newComics :: Int32
-  , unreadCount :: (Int32,Int32)
   , rows :: Int32
   , columns :: ViewColumns
   , newExternWindows :: Bool
   } deriving (Show)
 
+data UserPrefsWithStats = UserPrefsWithStats
+  { newComics :: Int32
+  , unreadCount :: (Int32,Int32)
+  , prefs :: UserPrefs
+  } deriving (Show)
+
 data App = App
   { _heist :: Snaplet (Heist App)
-  , _auth :: Snaplet (AuthManager UserPrefs App)
+  , _auth :: Snaplet (AuthManager UserPrefsWithStats App)
+  , _apiAuth :: Snaplet (AuthManager UserPrefs App)
   , _db :: Snaplet Hasql
   , _messages :: Snaplet SessionManager
+  , _extlookup :: Int -> Text -> Maybe ExternalEntry
+  , _taglookup :: [Int] -> [ComicTag]
   }
 
 makeLenses ''App
@@ -72,3 +87,4 @@ instance HasHasql (Handler App Hasql) where
 
 ------------------------------------------------------------------------------
 type AppHandler = Handler App App
+type RuntimeAppHandler a = RuntimeSplice AppHandler a -> Splice AppHandler

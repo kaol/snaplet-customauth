@@ -16,7 +16,7 @@ import Heist.Compiled.Extra as C
 import Text.XmlHtml
 import Data.Map.Syntax
 
-import Application
+import Application hiding (prefs)
 import Piperka.Listing.Types hiding (listing', listing'')
 import Piperka.Update.Types
 

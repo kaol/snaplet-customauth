@@ -5,8 +5,18 @@ create type integerpair as ("1" integer, "2" integer);
 DROP FUNCTION auth_login(text,text);
 DROP FUNCTION do_login(integer);
 DROP FUNCTION recover_session(uuid);
+
+CREATE OR REPLACE FUNCTION auth_create(in_name text, in_email text, in_password text, OUT o_uid integer, OUT p_session uuid, OUT csrf_ham uuid) AS $$
+BEGIN
+  IF NOT EXISTS(SELECT 1 FROM users WHERE lower(name)=lower(in_name)) THEN
+    INSERT INTO users (name, email, hash) VALUES (in_name, in_email, crypt(in_password, gen_salt('bf', 13))) RETURNING uid INTO o_uid;
+    SELECT o_uid, p_session, csrf_ham FROM do_login(o_uid) INTO o_uid, p_session, csrf_ham;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
+
 -- Log the user in using name and cleartext password
-CREATE OR REPLACE FUNCTION auth_login(in_name text, in_password text, OUT o_uid integer, OUT new_comics integer, OUT total_new integer, OUT new_in integer, OUT p_session uuid, OUT csrf_ham uuid) AS $$
+CREATE OR REPLACE FUNCTION auth_login(in_name text, in_password text, OUT o_uid integer, OUT p_session uuid, OUT csrf_ham uuid) AS $$
 DECLARE
   tmp_uid integer;
   pw_matches boolean;
@@ -28,16 +38,7 @@ BEGIN
     IF pw_convert THEN
       UPDATE users SET passwd=null, hash=crypt(in_password, gen_salt('bf', 13)) where uid=tmp_uid;
     END IF;
-    SELECT * FROM do_login(tmp_uid) INTO o_uid, new_comics, total_new, new_in, p_session, csrf_ham;
-  END IF;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION auth_create(in_name text, in_email text, in_password text, OUT o_uid integer, OUT p_session uuid, OUT csrf_ham uuid) AS $$
-BEGIN
-  IF NOT EXISTS(SELECT 1 FROM users WHERE lower(name)=lower(in_name)) THEN
-    INSERT INTO users (name, email, hash) VALUES (in_name, in_email, crypt(in_password, gen_salt('bf', 13))) RETURNING uid INTO o_uid;
-    SELECT o_uid, p_session, csrf_ham FROM do_login(o_uid) INTO o_uid, p_session, csrf_ham;
+    SELECT * FROM do_login(tmp_uid) INTO o_uid, p_session, csrf_ham;
   END IF;
 END;
 $$ LANGUAGE plpgsql;
@@ -52,22 +53,28 @@ BEGIN
     ELSE
       UPDATE users SET last_active = NOW() WHERE o_uid=uid;
     END IF;
-  SELECT COUNT(*) INTO new_comics from comics, users WHERE users.uid=o_uid AND comics.added_on > users.seen_comics_before;
--- TODO: precalculate, this adds 30ms (on my dev box) to every page access
-  SELECT SUM(num), COUNT(*) from comic_remain_frag(o_uid) JOIN comics USING (cid) WHERE num > 0 INTO total_new, new_in;
-  SELECT ses FROM p_session WHERE token_for=session INTO csrf_ham;
-END IF;
+    SELECT ses FROM p_session WHERE token_for=session INTO csrf_ham;
+  END IF;
 END;
 $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION do_login(in_uid integer, OUT o_uid integer, OUT new_comics integer, OUT total_new integer, OUT new_in integer, OUT p_session uuid, OUT csrf_ham uuid) AS $$
 BEGIN
-  UPDATE users SET last_login = NOW(), seen_comics_before = COALESCE(last_active,NOW()) WHERE in_uid=uid;
-  SELECT COUNT(*) INTO new_comics FROM comics, users WHERE users.uid=in_uid AND comics.added_on > users.seen_comics_before;
+  UPDATE users SET last_login = NOW() WHERE uid=in_uid;
   SELECT token INTO p_session FROM generate_session(in_uid, null);
   SELECT token INTO csrf_ham FROM generate_session(in_uid, p_session);
 -- TODO: precalculate, this adds 30ms (on my dev box) to every page access
-  SELECT SUM(num), COUNT(*) from comic_remain_frag($1) JOIN comics USING (cid) WHERE num > 0 INTO total_new, new_in;
   o_uid := in_uid;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION get_and_update_stats(in_uid integer, is_login boolean, OUT new_comics integer, OUT total_new integer, OUT new_in integer) AS $$
+BEGIN
+  IF is_login THEN
+    UPDATE users SET seen_comics_before = COALESCE(last_active, NOW()) WHERE in_uid=uid;
+-- TODO: precalculate, this adds 30ms (on my dev box) to every page access
+  END IF;
+  SELECT SUM(num), COUNT(*) from comic_remain_frag(in_uid) JOIN comics USING (cid) WHERE num > 0 INTO total_new, new_in;
+  SELECT COUNT(*) INTO new_comics FROM comics, users WHERE users.uid=in_uid AND comics.added_on > users.seen_comics_before;
 END;
 $$ LANGUAGE plpgsql;

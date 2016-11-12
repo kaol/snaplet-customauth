@@ -11,13 +11,6 @@ import Heist
 import qualified Data.Text as T
 import Text.XmlHtml
 
-defer
-  :: Monad n
-  => (RuntimeSplice n a -> Splice n)
-  -> RuntimeSplice n a
-  -> Splice n
-defer = deferMap return
-
 eitherDeferMap :: Monad n
                => (a -> RuntimeSplice n (Either b c))
                -> (RuntimeSplice n b -> Splice n)
@@ -69,3 +62,9 @@ checkedAttrSplice test runtime = do
   "checked" ## const $ do
     val <- runtime
     return $ if test val then [("checked", "")] else []
+
+emptySplices :: [T.Text] -> Splices (Splice a)
+emptySplices = mapM_ (\x -> x ## return mempty)
+
+emptySplices' :: [T.Text] -> Splices (b -> Splice a)
+emptySplices' = mapM_ (\x -> x ## const $ return mempty)
