@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections #-}
 
 module Piperka.Splices
   (
@@ -10,13 +11,12 @@ module Piperka.Splices
 
 import Heist
 import Heist.Compiled as C
+import Data.DList (DList)
 import qualified Data.Text as T
-import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8)
 import Snap
 import Data.Monoid
 import Control.Monad.Trans
-import Control.Monad.Trans.Maybe
 import Snap.Snaplet.CustomAuth
 import Backend()
 import qualified Text.XmlHtml as X
@@ -28,27 +28,14 @@ import Data.UUID
 import qualified HTMLEntities.Text as HTML
 
 import Application
+import Piperka.Action
+import Piperka.Action.Splices
+import Piperka.Action.Types
 import Piperka.Splices.Flavor
 import Piperka.Listing.Render
-import Piperka.Listing.Types (ViewColumns(..))
 import Piperka.ComicInfo.Splices
 import Piperka.Messages
 import Piperka.Util
-
-defaultUserPrefsWithStats :: UserPrefsWithStats
-defaultUserPrefsWithStats = UserPrefsWithStats
-  { newComics = 0
-  , unreadCount = (0,0)
-  , prefs = defaultUserPrefs
-  }
-
-defaultUserPrefs :: UserPrefs
-defaultUserPrefs = UserPrefs
-  { user = Nothing
-  , rows = 40
-  , columns = TwoColumn
-  , newExternWindows = False
-  }
 
 loginFailed :: forall b b1 v. b -> Handler App v b1
 loginFailed = const $ do
@@ -67,29 +54,37 @@ renderMinimal
   :: RuntimeAppHandler UserPrefs
   -> C.Splice AppHandler
 renderMinimal action =
-  (\n -> withSplices (action n) (contentSplices []) n) `C.defer`
-  ((fromMaybe defaultUserPrefs) <$>
+  (\n -> withSplices (action n) contentSplices' n) `C.defer`
+  (fromMaybe defaultUserPrefs <$>
    (lift $ withTop apiAuth $ combinedLoginRecover loginFailed))
+
+renderContent
+  :: [X.Node]
+  -> RuntimeAppHandler UserPrefs
+renderContent ns = C.withSplices (C.runNodeList ns) contentSplices'
 
 renderPiperka
   :: C.Splice AppHandler
 renderPiperka = do
   xs <- X.childNodes <$> getParamNode
   let prefsWithStats = lift $ withTop auth $ combinedLoginRecover loginFailed
-  let getInner = C.withSplices (C.callTemplate "_base") (contentSplices xs)
-  let getInner' = C.withSplices (C.runNodeList xs) (contentSplices [])
+  let getInner n = do
+        content <- renderContent xs $ snd <$> n
+        C.withSplices (C.callTemplate "_base")
+          (contentSplices content) n
+  let getInner' = C.withSplices (C.runNodeList xs) contentSplices'
   normal <- (\n -> do
-                let inner = getInner $ prefs <$> n
+                let inner = getInner $ (\(a,p) -> (a, prefs p)) <$> n
                 C.withSplices inner statsSplices n) `C.defer`
-            ((fromMaybe defaultUserPrefsWithStats) <$> prefsWithStats)
+            (processAction =<< (fromMaybe defaultUserPrefsWithStats) <$> prefsWithStats)
   bare <- renderMinimal getInner'
   return $ yieldRuntime $ do
     useMinimal <- lift $ isJust <$> getParam "minimal"
     codeGen $ if useMinimal then bare else normal
 
 statsSplices
-  :: Splices (RuntimeAppHandler UserPrefsWithStats)
-statsSplices = do
+  :: Splices (RuntimeAppHandler (a, UserPrefsWithStats))
+statsSplices = mapV (. fmap snd) $ do
   "unreadStats" ## \runtime -> return $ C.yieldRuntimeText $ do
     p <- runtime
     return $ case unreadCount p of
@@ -108,49 +103,57 @@ statsSplices = do
       if new > 0 then codeGen content else return mempty
 
 contentSplices
-  :: [X.Node]
-  -> Splices (RuntimeAppHandler UserPrefs)
-contentSplices childNodes = do
+  :: DList (Chunk AppHandler)
+  -> Splices (RuntimeAppHandler (Maybe (Maybe ActionError, Maybe Action), UserPrefs))
+contentSplices content =
+  ("action" ## renderAction $ return content) <>
+  (mapV (. fmap snd)) contentSplices'
+
+contentSplices'
+  :: Splices (RuntimeAppHandler UserPrefs)
+contentSplices' = do
+  "subscribeForm" ## const $ callTemplate "_subscribe"
   "kaolSubs" ## renderKaolSubs
-  "apply-content" ## (C.withSplices (C.runNodeList childNodes) (contentSplices []))
   "ifLoggedIn" ## C.deferMany (C.withSplices C.runChildren loggedInSplices) .
-                  \n -> runMaybeT $ do
-                    u <- MaybeT $ user <$> n
-                    return (uname u, ucsrfToken u)
+    \n -> user <$> n
   "ifLoggedOut" ## C.conditionalChildren
     (const C.runChildren)
     (isNothing . user)
   "listing" ## renderListing
   "externA" ## renderExternA
   "withCid" ## renderWithCid
+  "csrfForm" ## csrfForm
 
 loggedInSplices
-  :: Splices (RuntimeAppHandler (Text, UUID))
+  :: Splices (RuntimeAppHandler MyData)
 loggedInSplices = do
-  "loggedInUser" ## C.pureSplice . C.textSplice $ HTML.text . fst
-  "csrf" ## C.pureSplice . C.textSplice $ toText . snd
-  "csrfForm" ## csrfForm
+  "loggedInUser" ## C.pureSplice . C.textSplice $ HTML.text . uname
+  "csrf" ## C.pureSplice . C.textSplice $ toText . ucsrfToken
   "profileLink" ## profileLink
 
 profileLink
-  :: RuntimeAppHandler (Text, UUID)
+  :: RuntimeAppHandler MyData
 profileLink =
   let mkLink = \prof -> encodePathToText ["profile.html"]
                         [("name", Just $ encodeUtf8 prof)]
-  in C.pureSplice . C.textSplice $ mkLink . fst
+  in C.pureSplice . C.textSplice $ mkLink . uname
 
 csrfForm
-  :: RuntimeAppHandler (Text, UUID)
+  :: RuntimeAppHandler UserPrefs
 csrfForm _ = do
-  node <- getParamNode
-  let csrfInput = X.Element "input" [ ("type", "hidden")
-                                    , ("name", "csrf_ham")
-                                    , ("value", "${h:csrf}")
-                                    ] []
-  let node' = node { X.elementTag = "form"
-                   , X.elementChildren = csrfInput:(X.elementChildren node)
-                   }
-  runNode node'
+  rootNode <- getParamNode
+  let sub = X.childNodes rootNode
+  inner <- runNodeList sub
+  let formSplices = do
+        "apply-form-content" ## return inner
+        "form" ## do
+          node <- getParamNode
+          let node' = node { X.elementTag = "form"
+                           , X.elementAttrs = X.elementAttrs rootNode
+                           , X.elementChildren = X.childElements node
+                           }
+          runNode node'
+  withLocalSplices formSplices mempty (C.callTemplate "_csrfForm")
 
 renderExternA
   :: RuntimeAppHandler UserPrefs

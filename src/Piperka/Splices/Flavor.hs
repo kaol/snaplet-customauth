@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Piperka.Splices.Flavor where
 
-import Heist
 import qualified Heist.Compiled as C
 import qualified Data.Text as T
 import Application
@@ -14,8 +13,7 @@ import Hasql.Session (query)
 import Control.Monad.Trans
 
 renderKaolSubs
-  :: RuntimeSplice (Handler App App) UserPrefs
-  -> C.Splice (Handler App App)
+  :: RuntimeAppHandler a
 renderKaolSubs _ = do
   return $ C.yieldRuntimeText $ do
     num <- lift $ withTop db $ do

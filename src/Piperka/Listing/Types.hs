@@ -96,6 +96,12 @@ getProfile (ProfileParam x _) = Common x
 getProfile (UserProfileParam x _) = x
 getProfile _ = undefined
 
+listingModeSubscribes :: ListingMode -> Bool
+listingModeSubscribes Top = True
+listingModeSubscribes Browse = True
+listingModeSubscribes Profile = True
+listingModeSubscribes _ = False
+
 getListingPageName :: ListingMode -> Text
 getListingPageName Top = "top.html"
 getListingPageName Browse = "browse.html"

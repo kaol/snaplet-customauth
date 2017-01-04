@@ -18,6 +18,8 @@ module Application
   , messages
   , taglookup
   , extlookup
+  , defaultUserPrefsWithStats
+  , defaultUserPrefs
   ) where
 
 ------------------------------------------------------------------------------
@@ -40,6 +42,7 @@ import Heist (RuntimeSplice)
 import Heist.Compiled (Splice)
 
 import Piperka.ComicInfo.Types
+import Piperka.Listing.Types (ViewColumns(..))
 ------------------------------------------------------------------------------
 
 data MyData = MyData
@@ -73,6 +76,21 @@ data App = App
   }
 
 makeLenses ''App
+
+defaultUserPrefsWithStats :: UserPrefsWithStats
+defaultUserPrefsWithStats = UserPrefsWithStats
+  { newComics = 0
+  , unreadCount = (0,0)
+  , prefs = defaultUserPrefs
+  }
+
+defaultUserPrefs :: UserPrefs
+defaultUserPrefs = UserPrefs
+  { user = Nothing
+  , rows = 40
+  , columns = TwoColumn
+  , newExternWindows = False
+  }
 
 instance HasHeist App where
   heistLens = subSnaplet heist

@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Piperka.Listing.Navigate.Splices where
+module Piperka.Listing.Navigate.Splices (navigateSplices, offsetHref) where
 
 import Heist
 import Heist.Compiled as C
@@ -15,19 +15,18 @@ import Piperka.Util (encodePathToText)
 
 navigateSplices
   :: Bool
-  -> Splices (RuntimeSplice (AppHandler) (([Text], Query), Int, Int, Int)
-              -> C.Splice (AppHandler))
-navigateSplices isBottom = do
+  -> Splices (RuntimeAppHandler (([Text], Query), Int, Int, Int))
+navigateSplices canSubscribe = do
+  "subscribeControl" ## const $
+    if canSubscribe then runChildren else return mempty
   "start" ## renderNavigate (const . const . const 0)
   "prev" ## renderNavigate (const (-))
   "next" ## renderNavigate (const (+))
   "end" ## renderNavigate (const . const)
-  "bottom" ## const $ return $ yieldPureText $ if isBottom then " bottom" else ""
 
 renderNavigate
   :: (Int -> Int -> Int -> Int)
-  -> RuntimeSplice (AppHandler) (([Text], Query), Int, Int, Int)
-  -> Splice AppHandler
+  -> RuntimeAppHandler (([Text], Query), Int, Int, Int)
 renderNavigate getOffset runtime = do
   deferMap getThisOffset
     (\runtimeAction -> withLocalSplices mempty
@@ -46,8 +45,8 @@ offsetHref
   :: RuntimeSplice AppHandler (Maybe (([Text], Query), Int))
   -> Splices (AttrSplice AppHandler)
 offsetHref runtime =
-  "href" ## const $ do
+  "href" ## \attrName -> do
     val <- runtime
     return $ maybe [] (\((path, q), offset) ->
                         let q' = q ++ [("offset", Just $ B.pack $ show offset)] in
-                        [("href", encodePathToText path q')]) val
+                        [(attrName, encodePathToText path q')]) val

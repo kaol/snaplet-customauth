@@ -1,16 +1,20 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 
 module Piperka.Listing.Render (renderListing) where
 
+import Control.Error.Util (note)
 import Control.Monad.Trans
 import Control.Monad.Trans.Maybe
 import qualified Data.ByteString.Char8 as B (unpack)
 import Data.ByteString.Read (int)
+import Data.Map.Syntax
 import Data.Maybe
-import Data.Text (unpack)
+import Data.Text (unpack, Text)
 import Heist
 import Heist.Compiled as C
 import Heist.Compiled.Extra as C
+import Network.HTTP.Types.URI (Query)
 import Text.XmlHtml
 import Data.Monoid
 import Snap
@@ -28,34 +32,40 @@ import Piperka.Listing.Column.Splices
 import Piperka.Profile.Types (profile, perm)
 
 
+success
+  :: ListingMode
+  -> RuntimeAppHandler ((UserPrefs, Int, ListingParam),
+                        (Bool, Maybe (([Text], Query), Int, Int, Int))
+                       )
+success mode n = do
+  onlyLst <- C.withSplices (C.callTemplate "_listing")
+             (listingColumnSplices mode) (fst <$> n)
+  lst <- C.eitherDeferMap (return . note () . snd . snd)
+         (const $ return onlyLst)
+         (C.withSplices (C.callTemplate "_navigate")
+          (("apply-content" ## const $ return onlyLst) <>
+           (navigateSplices $ listingModeSubscribes mode))) n
+  hd <- withSplices runChildren (listingHeaderSplices mode) $
+        ((\(_, _, x) -> x) . fst <$> n)
+  let content = return $ yieldRuntime $ do
+        (_, (useMinimal, _)) <- n
+        lst' <- case mode of
+                 Profile -> do
+                   havePerm <- perm . profile . getProfile .
+                               (\(_, _, x) -> x) . fst <$> n
+                   return $ if havePerm then lst else mempty
+                 _ -> return lst
+        codeGen $ if useMinimal then lst' else hd <> lst'
+  withLocalSplices ("apply-content" ## content)
+    (offsetHref $ (fmap (\(a, b, _, _) -> (a, b))) . snd . snd <$> n)
+    (callTemplate "_listingForm")
+
 renderListing
-  :: RuntimeSplice AppHandler UserPrefs
-  -> C.Splice AppHandler
+  :: RuntimeAppHandler UserPrefs
 renderListing runtime = do
   mode <- read . unpack . fromJust . getAttribute "mode" <$> getParamNode
 
-  let success n = do
-        tpl <- C.withSplices (C.callTemplate "_listing")
-               (listingColumnSplices mode) (fst <$> n)
-        let n' = snd <$> n
-        nTpl1 <- deferMany (C.withSplices (C.callTemplate "_navigate")
-                            (navigateSplices False)) n'
-        nTpl2 <- deferMany (C.withSplices (C.callTemplate "_navigate")
-                            (navigateSplices True)) n'
-        hd <- withSplices runChildren (listingHeaderSplices mode) $
-              ((\(_, _, x) -> x) . fst <$> n)
-        let lst = nTpl1 <> tpl <> nTpl2
-        return $ yieldRuntime $ do
-          lst' <- case mode of
-                   Profile -> do
-                     havePerm <- perm . profile . getProfile .
-                                 (\(_, _, x) -> x) . fst <$> n
-                     return $ if havePerm then lst else mempty
-                   _ -> return lst
-          useMinimal <- lift $ isJust <$> getParam "minimal"
-          codeGen $ if useMinimal then lst' else hd <> lst'
-
-      failure action = do
+  let failure action = do
         missing <- runMaybeT
                    (MaybeT (return $ case mode of
                              Update -> Just "_updateMissing"
@@ -79,6 +89,7 @@ renderListing runtime = do
           _ -> do
             paramOrd <- lift $ fmap (parseOrdering . B.unpack) <$> getParam "sort"
             return $ maybe (L.TitleAsc, Nothing) ((,) <$> id <*> Just) paramOrd
+        useMinimal <- lift $ isJust <$> getParam "minimal"
         offset <- lift $ (fromIntegral . maybe 0 ((maybe 0 fst) . int))
                   <$> getParam "offset"
         let limit = (rows prefs) * (columnsToInt $ columns prefs)
@@ -87,11 +98,12 @@ renderListing runtime = do
         let makeResult param =
               let pathQuery = maybe id addSort paramOrd $ getListingPathQuery mode param
                   tot = extractTotal param
-                  navParams = if tot <= limit
+                  navParams = (useMinimal,) $
+                              if useMinimal || tot <= limit
                               then Nothing
                               else Just (pathQuery, fromIntegral offset,
                                          fromIntegral limit, fromIntegral tot)
               in ((prefs, fromIntegral offset, param), navParams)
         return $ fmap makeResult lst
 
-  C.eitherDeferMap getListingData failure success runtime
+  C.eitherDeferMap getListingData failure (success mode) runtime

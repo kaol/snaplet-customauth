@@ -107,9 +107,9 @@ render deadPage success failure n = do
              maybe "" (T.decodeLatin1 . fst)) n') n
 
 renderExists :: Bool -> RuntimeAppHandler ComicInfo
-renderExists isComicInfo = withSplices runChildren $ do
+renderExists deadPage = withSplices runChildren $ do
   "thisPage" ## pureSplice . textSplice $
-    ((if isComicInfo then "info.html?cid=" else "deadinfo.html?cid=") <>) .
+    ((if deadPage then "deadinfo.html?cid=" else "info.html?cid=") <>) .
     T.pack . show . cid
   "related" ## const $ return mempty -- TODO
   "comicInfo" ## \n -> withSplices (callTemplate "cinfo")
@@ -121,7 +121,7 @@ renderExists isComicInfo = withSplices runChildren $ do
     t <- nodeFilter "true"
     f <- nodeFilter "false"
     flip bindLater n $ \info -> do
-      codeGen $ if fromMaybe False $ subscribed info then t else f
+      codeGen $ if fromMaybe False $ subscribed info then f else t
   "crawlErrors" ## renderCrawlErrors
   "ifMapped" ## \n -> do
     x <- runChildren
