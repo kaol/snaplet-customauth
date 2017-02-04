@@ -17,11 +17,13 @@ import Data.Text.Encoding (encodeUtf8)
 import Snap
 import Data.Monoid
 import Control.Monad.Trans
+import Control.Monad.Trans.Except
 import Snap.Snaplet.CustomAuth
 import Backend()
 import qualified Text.XmlHtml as X
 import Data.Map.Syntax
 import qualified Heist.Compiled.Extra as C
+import qualified Hasql.Session
 
 import Data.Maybe
 import Data.UUID
@@ -31,6 +33,7 @@ import Application
 import Piperka.Action
 import Piperka.Action.Splices
 import Piperka.Action.Types
+import Piperka.Splices.Account
 import Piperka.Splices.Flavor
 import Piperka.Listing.Render
 import Piperka.ComicInfo.Splices
@@ -41,6 +44,12 @@ loginFailed :: forall b b1 v. b -> Handler App v b1
 loginFailed = const $ do
   saveMessage "login failed"
   redirect' "/" 303
+
+accountCreationFailed
+  :: C.Splice AppHandler
+  -> RuntimeAppHandler (CreateFailure Hasql.Session.Error)
+accountCreationFailed content n = do
+  withSplices content (accountCreateFailSplices <> nullStatsSplices) n
 
 piperkaSplices
   :: Splices (C.Splice AppHandler)
@@ -63,21 +72,46 @@ renderContent
   -> RuntimeAppHandler UserPrefs
 renderContent ns = C.withSplices (C.runNodeList ns) contentSplices'
 
+prefsMayCreate
+  :: ExceptT (CreateFailure Hasql.Session.Error) (RuntimeSplice AppHandler)
+     (Maybe UserPrefsWithStats)
+prefsMayCreate = do
+  p <- lift $ lift $ withTop auth $ combinedLoginRecover loginFailed
+  case p of
+   Just _ -> return p
+   Nothing -> do
+     isCreate <- lift $ lift $ (== (Just "Create account")) <$> getParam "action"
+     if isCreate
+       then (ExceptT $ lift $ withTop auth createAccount) >>=
+            (const $ lift $ lift $ redirect' "/welcome.html" 303)
+       else return Nothing
+
 renderPiperka
   :: C.Splice AppHandler
 renderPiperka = do
+  mayCreateUser <- maybe False (read . T.unpack) . X.getAttribute "newUser" <$>
+                   getParamNode
   xs <- X.childNodes <$> getParamNode
   let prefsWithStats = lift $ withTop auth $ combinedLoginRecover loginFailed
   let getInner n = do
         content <- renderContent xs $ snd <$> n
         C.withSplices (C.callTemplate "_base")
           (contentSplices content) n
-  let getInner' = C.withSplices (C.runNodeList xs) contentSplices'
-  normal <- (\n -> do
-                let inner = getInner $ (\(a,p) -> (a, prefs p)) <$> n
-                C.withSplices inner statsSplices n) `C.defer`
-            (processAction =<< (fromMaybe defaultUserPrefsWithStats) <$> prefsWithStats)
-  bare <- renderMinimal getInner'
+      defaultInner = getInner $ return (Nothing, defaultUserPrefs)
+      renderInner s n = let inner = getInner $ (\(a, p) -> (a, prefs p)) <$> n
+                        in C.withSplices inner (statsSplices <> s) n
+  normal <- if mayCreateUser
+            then
+              (C.eitherDeferMap return (paramValueSplice . accountCreationFailed defaultInner)
+               (nullCreateSplice . renderInner mempty))
+              `C.defer`
+              (runExceptT $ (lift . processAction) =<<
+               fromMaybe defaultUserPrefsWithStats <$> prefsMayCreate)
+            else
+              renderInner mempty `C.defer`
+              (processAction =<< fromMaybe defaultUserPrefsWithStats <$> prefsWithStats)
+  bare <- renderMinimal $ nullCreateSplice .
+          C.withSplices (C.runNodeList xs) contentSplices'
   return $ yieldRuntime $ do
     useMinimal <- lift $ isJust <$> getParam "minimal"
     codeGen $ if useMinimal then bare else normal
@@ -101,6 +135,12 @@ statsSplices = mapV (. fmap snd) $ do
     flip bindLater n $ \stats -> do
       let new = newComics stats
       if new > 0 then codeGen content else return mempty
+
+nullStatsSplices
+  :: Splices (RuntimeAppHandler a)
+nullStatsSplices = mapV (const . return) $ do
+  "unreadStats" ## mempty
+  "newLink" ## mempty
 
 contentSplices
   :: DList (Chunk AppHandler)

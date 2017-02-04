@@ -135,7 +135,6 @@ performSql
   -> RuntimeSplice AppHandler (Either Hasql.Session.Error (Int32, Int32))
   -> ExceptT ActionError (RuntimeSplice AppHandler) UserPrefsWithStats
 performSql usr act =
---  either (throwE . SqlError) return =<<
   either (\x -> throwE $ SqlError x) return =<<
   (lift $ runExceptT $ do
       (total, count) <- ExceptT act

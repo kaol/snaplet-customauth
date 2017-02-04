@@ -3,9 +3,11 @@ module Snap.Snaplet.CustomAuth
     AuthManager(..)
   , AuthUser(..)
   , AuthFailure(..)
+  , CreateFailure(..)
   , IAuthBackend(..)
   , UserData(..)
   , defAuthSettings
+  , createAccount
   , loginUser
   , logoutUser
   , recoverSession

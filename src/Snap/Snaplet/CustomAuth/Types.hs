@@ -5,8 +5,14 @@ module Snap.Snaplet.CustomAuth.Types where
 import Data.Text
 import Data.ByteString
 
-data AuthFailure = AuthFailure | UsernameMissing | PasswordMissing | AuthError String
-                 deriving (Show)
+data (Eq e, Show e) => AuthFailure e =
+  AuthFailure | UsernameMissing | PasswordMissing | AuthError e
+  deriving (Show, Eq)
+
+data (Eq e, Show e) => CreateFailure e =
+  MissingName | NameUsed | PasswordMismatch | NoPassword |
+  AvailError e | CreateError e
+  deriving (Show, Eq)
 
 data AuthUser = AuthUser
  {  name :: Text
