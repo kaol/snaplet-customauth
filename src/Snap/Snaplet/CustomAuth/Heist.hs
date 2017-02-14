@@ -17,7 +17,7 @@ import Data.Map.Syntax
 
 
 addAuthSplices
-  :: (HasHeist b, UserData u)
+  :: UserData u
   => Snaplet (Heist b)
   -> SnapletLens b (AuthManager u b)
   -> Initializer b v ()

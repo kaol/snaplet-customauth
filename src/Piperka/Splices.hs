@@ -38,6 +38,7 @@ import Piperka.Splices.Flavor
 import Piperka.Listing.Render
 import Piperka.ComicInfo.Splices
 import Piperka.Messages
+import Piperka.Recover
 import Piperka.Util
 
 loginFailed :: forall b b1 v. b -> Handler App v b1
@@ -163,6 +164,8 @@ contentSplices' = do
   "externA" ## renderExternA
   "withCid" ## renderWithCid
   "csrfForm" ## csrfForm
+  "passwordRecovery" ## renderPasswordRecovery
+  "usePasswordHash" ## renderUsePasswordHash
 
 loggedInSplices
   :: Splices (RuntimeAppHandler MyData)

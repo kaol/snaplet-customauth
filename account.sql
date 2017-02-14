@@ -1,5 +1,7 @@
 create extension pgcrypto;
 
+SET ROLE piperka;
+
 DROP FUNCTION auth_login(text,text);
 DROP FUNCTION do_login(integer);
 DROP FUNCTION recover_session(uuid);
@@ -119,8 +121,38 @@ CREATE TABLE login_method (
 
 CREATE TABLE login_method_passwd (
   hash char(60) NOT NULL,
-) INHERITS login;
+) INHERITS login_method;
 
-CREATE TABLE login_method_temp_hash (
-  temp_hash uuid NOT NULL
-);
+ALTER TABLE pwdgen_hash ADD COLUMN stamp timestamp DEFAULT now();
+
+CREATE OR REPLACE FUNCTION create_recovery_key(name text, email text, hash character(32)) RETURNS boolean AS $$
+DECLARE
+  _uid integer;
+BEGIN
+  _uid := (SELECT users.uid FROM users WHERE LOWER($1)=LOWER(users.name) AND users.email=$2);
+  IF _uid IS NULL THEN
+    RETURN FALSE;
+  END IF;
+  DELETE FROM pwdgen_hash WHERE pwdgen_hash.uid=_uid;
+  INSERT INTO pwdgen_hash (uid, hash) VALUES (_uid, hash);
+  RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION reset_user_password(name text, hash character(32), password text) RETURNS boolean AS $$
+DECLARE
+  _uid integer;
+BEGIN
+  _uid := (SELECT users.uid FROM users JOIN pwdgen_hash USING (uid)
+       WHERE lower(users.name)=lower($1) AND pwdgen_hash.hash = $2
+       AND pwdgen_hash.stamp > now() - ('1 day'::interval));
+  if _uid IS NULL THEN
+    RETURN FALSE;
+  END IF;
+  DELETE FROM login_method_passwd WHERE lmid IN (SELECT user_login.lmid FROM user_login WHERE uid=_uid);
+  INSERT INTO user_login (uid, lmid) VALUES (_uid, (SELECT lmid FROM auth_create_password($3)));
+  DELETE FROM user_login WHERE uid=_uid AND lmid NOT IN (SELECT lmid FROM login_method);
+  DELETE FROM pwdgen_hash WHERE uid=_uid;
+  RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql;

@@ -35,7 +35,7 @@ setUser usr = do
   modifyResponse $ addResponseCookie wafer
 
 loginUser
-  :: (UserData u, IAuthBackend u e b)
+  :: IAuthBackend u e b
   => (AuthFailure e -> Handler b (AuthManager u b) ())
   -> Handler b (AuthManager u b) ()
   -> Handler b (AuthManager u b) ()
@@ -52,7 +52,7 @@ loginUser loginFail loginSucc = do
   either loginFail (const loginSucc) res
 
 logoutUser
-  :: (UserData u, IAuthBackend u e b)
+  :: IAuthBackend u e b
   => Handler b (AuthManager u b) ()
 logoutUser = do
   sesName <- gets sessionCookieName
@@ -62,7 +62,7 @@ logoutUser = do
   modify $ \mgr -> mgr { activeUser = Nothing }
 
 recoverSession
-  :: (Show u, UserData u, IAuthBackend u e b)
+  :: IAuthBackend u e b
   => Handler b (AuthManager u b) ()
 recoverSession = do
   sesName <- gets sessionCookieName
@@ -75,7 +75,7 @@ recoverSession = do
 -- Recover if session token is present.  Login if login+password are
 -- present.
 combinedLoginRecover
-  :: (Show u, UserData u, IAuthBackend u e b)
+  :: IAuthBackend u e b
   => (AuthFailure e -> Handler b (AuthManager u b) ())
   -> Handler b (AuthManager u b) (Maybe u)
 combinedLoginRecover loginFail = do
@@ -93,7 +93,7 @@ combinedLoginRecover loginFail = do
         MaybeT currentUser
 
 createAccount
-  :: (Eq e, Show e, Show u, UserData u, IAuthBackend u e b)
+  :: (Eq e, Show e, IAuthBackend u e b)
   => Handler b (AuthManager u b) (Either (CreateFailure e) u)
 createAccount = do
   usrName <- ("_new" <>) <$> gets userField
@@ -115,7 +115,7 @@ createAccount = do
   return res
 
 authInit
-  :: (UserData u, IAuthBackend u e b)
+  :: IAuthBackend u e b
   => ByteString
   -> ByteString
   -> ByteString

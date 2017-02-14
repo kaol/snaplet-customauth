@@ -1,16 +1,32 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE RankNTypes #-}
 
-module Piperka.Util where
+module Piperka.Util
+  ( encodePathToText
+  , urlEncodeTextToBuilder
+  , plural
+  , formatTime'
+  , if'
+  , maybeParseInt
+  , monadicTuple2
+  , monadicTuple3
+  , randomString
+  , getParamText
+  ) where
 
+import Control.Error.Util (hush)
 import Control.Monad
 import Network.HTTP.Types.URI (Query, encodePath, urlEncode)
 import Blaze.ByteString.Builder (Builder, toByteString)
 import Blaze.ByteString.Builder.ByteString (fromByteString)
+import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B
-import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import Data.Char
+import Data.Text.Encoding (decodeUtf8, decodeUtf8', encodeUtf8)
 import Data.Text
 import Data.Time.Format
+import Snap (getParam, MonadSnap)
+import System.Random (randomRIO)
 
 encodePathToText
   :: [Text]
@@ -66,3 +82,23 @@ monadicTuple3 (a, b, c) = do
   b' <- b
   c' <- c
   return (a', b', c')
+
+randomSafeCharFromInt
+  :: Int
+  -> Char
+randomSafeCharFromInt i
+  | i < 10 = chr (i+48)
+  | i < 36 = chr (i+55)
+  | otherwise = chr (i+61)
+
+randomString
+  :: Int
+  -> IO Text
+randomString n = pack <$> replicateM n (randomSafeCharFromInt <$> randomRIO (0,61))
+
+getParamText
+  :: forall (f :: * -> *).
+     MonadSnap f
+  => ByteString
+  -> f (Maybe Text)
+getParamText name = (hush . decodeUtf8' =<<) <$> getParam name

@@ -6,8 +6,7 @@ module Piperka.Listing.Render (renderListing) where
 import Control.Error.Util (note)
 import Control.Monad.Trans
 import Control.Monad.Trans.Maybe
-import qualified Data.ByteString.Char8 as B (unpack)
-import Data.ByteString.Read (int)
+import qualified Data.ByteString.Char8 as B (unpack, readInt)
 import Data.Map.Syntax
 import Data.Maybe
 import Data.Text (unpack, Text)
@@ -90,7 +89,7 @@ renderListing runtime = do
             paramOrd <- lift $ fmap (parseOrdering . B.unpack) <$> getParam "sort"
             return $ maybe (L.TitleAsc, Nothing) ((,) <$> id <*> Just) paramOrd
         useMinimal <- lift $ isJust <$> getParam "minimal"
-        offset <- lift $ (fromIntegral . maybe 0 ((maybe 0 fst) . int))
+        offset <- lift $ (fromIntegral . maybe 0 ((maybe 0 fst) . B.readInt))
                   <$> getParam "offset"
         let limit = (rows prefs) * (columnsToInt $ columns prefs)
         lst <- getListing mode ord offset limit (((,) <$> uid <*> uname)
