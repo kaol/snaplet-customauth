@@ -8,10 +8,14 @@ import Heist.Compiled
 import Heist
 import Data.Map.Syntax
 
-import Application(AppHandler)
+import Application(RuntimeAppHandler)
 
 -- TODO: log
 sqlErrorSplices
-  :: Splices (RuntimeSplice AppHandler Error -> Splice AppHandler)
+  :: Splices (RuntimeAppHandler Error)
 sqlErrorSplices = do
   "sqlError" ## pureSplice . textSplice $ pack . show
+
+stdSqlErrorSplice
+  :: RuntimeAppHandler Error
+stdSqlErrorSplice = withSplices (callTemplate "_sqlErr") sqlErrorSplices

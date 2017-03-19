@@ -12,11 +12,6 @@ import Hasql.Query
 
 import Piperka.Profile.Types
 
-intToPrivacy :: (Num a, Eq a) => a -> Privacy
-intToPrivacy 3 = Public
-intToPrivacy 2 = Friends
-intToPrivacy _ = Private
-
 decodeProfile :: DE.Row CommonProfile
 decodeProfile =
   CommonProfile

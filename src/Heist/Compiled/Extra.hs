@@ -1,14 +1,19 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Heist.Compiled.Extra where
 
+import Data.List
+import qualified Data.IntMap as I
+import qualified Data.Map.Strict as M
 import Data.Map.Syntax
+import Data.Text (Text)
+import qualified Data.Text as T
 import Heist.Compiled
 import Heist.Compiled.LowLevel
 import Heist
-import qualified Data.Text as T
 import Text.XmlHtml
 
 eitherDeferMap :: Monad n
@@ -68,3 +73,34 @@ emptySplices = mapM_ (\x -> x ## return mempty)
 
 emptySplices' :: [T.Text] -> Splices (b -> Splice a)
 emptySplices' = mapM_ (\x -> x ## const $ return mempty)
+
+data IndexedAction a b n = Simple
+                         | WithParam (a -> RuntimeSplice n b)
+                           (Splice n -> RuntimeSplice n b -> Splice n)
+
+-- TODO: Error handling
+stdConditionalSplice
+  :: forall a b n. (Eq a, Bounded a, Enum a, Monad n)
+  => (a -> (Text, IndexedAction a b n))
+  -> RuntimeSplice n a
+  -> Splice n
+stdConditionalSplice act n = do
+  node <- getParamNode
+  let cs = M.fromList $ map (\x -> (elementTag x, runNodeList $ elementChildren x)) $
+           childElements node
+      makeSplice (t, Simple, i) = do
+        x <- cs M.! t
+        return (i, x)
+      makeSplice (t, WithParam f m, i) = do
+        let s' = cs M.! t
+        x <- deferMap f (m s') n
+        return (i, x)
+      unfoldrCond f = f minBound :
+        unfoldr (\a -> if a == maxBound
+                       then Nothing
+                       else let a' = succ a in Just (f a', a')) minBound
+      nodeNames = unfoldrCond $ fst . act
+      actions = unfoldrCond $ snd . act
+  m <- I.fromList <$> (mapM makeSplice $ zip3 nodeNames actions $ map (fromEnum :: a -> Int)
+                       (enumFromTo minBound maxBound :: [a]))
+  flip bindLater n $ \x -> codeGen $ m I.! fromEnum x

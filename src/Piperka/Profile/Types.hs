@@ -49,3 +49,13 @@ instance SubProfile Profile where
   profile (Common x) = x
   profile (Own x) = profile x
   profile (Other x) = profile x
+
+intToPrivacy :: (Num a, Eq a) => a -> Privacy
+intToPrivacy 3 = Public
+intToPrivacy 2 = Friends
+intToPrivacy _ = Private
+
+privacyToInt :: (Num a) => Privacy -> a
+privacyToInt Public = 3
+privacyToInt Friends = 2
+privacyToInt Private = 1

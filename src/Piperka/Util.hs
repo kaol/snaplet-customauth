@@ -8,6 +8,7 @@ module Piperka.Util
   , formatTime'
   , if'
   , maybeParseInt
+  , maybeDecodeText
   , monadicTuple2
   , monadicTuple3
   , randomString
@@ -63,6 +64,11 @@ maybeParseInt s = do
   (i,x) <- B.readInt s
   guard $ B.null x
   return i
+
+maybeDecodeText
+  :: B.ByteString
+  -> Maybe Text
+maybeDecodeText = hush . decodeUtf8'
 
 monadicTuple2
   :: forall (m :: * -> *) a b. Monad m

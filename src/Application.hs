@@ -11,6 +11,7 @@ module Application
   , App(..)
   , AppHandler
   , RuntimeAppHandler
+  , UserID
   , auth
   , apiAuth
   , heist
@@ -45,8 +46,10 @@ import Piperka.ComicInfo.Types
 import Piperka.Listing.Types (ViewColumns(..))
 ------------------------------------------------------------------------------
 
+type UserID = Int32
+
 data MyData = MyData
-  { uid :: Int32
+  { uid :: UserID
   , uname :: T.Text
   , usession :: UUID
   , ucsrfToken :: UUID

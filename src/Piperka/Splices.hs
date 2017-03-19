@@ -30,6 +30,7 @@ import Data.UUID
 import qualified HTMLEntities.Text as HTML
 
 import Application
+import Piperka.Account
 import Piperka.Action
 import Piperka.Action.Splices
 import Piperka.Action.Types
@@ -166,6 +167,7 @@ contentSplices' = do
   "csrfForm" ## csrfForm
   "passwordRecovery" ## renderPasswordRecovery
   "usePasswordHash" ## renderUsePasswordHash
+  "accountForm" ## renderAccountForm
 
 loggedInSplices
   :: Splices (RuntimeAppHandler MyData)
