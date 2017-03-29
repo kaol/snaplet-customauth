@@ -36,6 +36,7 @@ import Piperka.Action.Splices
 import Piperka.Action.Types
 import Piperka.Splices.Account
 import Piperka.Splices.Flavor
+import Piperka.Splices.Revert
 import Piperka.Listing.Render
 import Piperka.ComicInfo.Splices
 import Piperka.Messages
@@ -168,6 +169,7 @@ contentSplices' = do
   "passwordRecovery" ## renderPasswordRecovery
   "usePasswordHash" ## renderUsePasswordHash
   "accountForm" ## renderAccountForm
+  "recent" ## renderRecent
 
 loggedInSplices
   :: Splices (RuntimeAppHandler MyData)

@@ -1,12 +1,16 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE Arrows #-}
 
 module Piperka.Action.Statements where
 
 import Contravariant.Extras.Contrazip
 import Control.Applicative
+import Control.Arrow
 import Data.ByteString (ByteString)
 import Data.Int
 import Data.Text (Text)
+import Data.Vector (Vector)
+import qualified Data.Vector as V
 import Hasql.Query
 import qualified Hasql.Decoders as DE
 import qualified Hasql.Encoders as EN
@@ -32,6 +36,14 @@ decodeUnreadStats =
   (,)
   <$> DE.value DE.int4
   <*> DE.value DE.int4
+
+getUnreadStats
+  :: Query Int32 (Int32, Int32)
+getUnreadStats =
+  statement sql (EN.value EN.int4) (DE.singleRow decodeUnreadStats) True
+  where
+    sql = "SELECT COALESCE(SUM(Num), 0), COUNT(*) FROM comic_remain_frag($1) \
+          \JOIN comics USING (cid) WHERE num > 0"
 
 bookmarkFetch
   :: Query (Text, Bool) [(Int, Text, Maybe (Int, Int, Bool))]
@@ -80,6 +92,28 @@ unsubscribeSet =
   (DE.singleRow decodeUnreadStats) True
   where
     sql = "SELECT * FROM unset_bookmark($1, $2)"
+
+revertUpdatesSet
+  :: Query (Int32, Vector Int32) (Int32, Int32)
+revertUpdatesSet = proc params -> do
+  applyReverts -< params
+  deleteReverts -< params
+  uid <- arr fst -< params
+  getUnreadStats -< uid
+  where
+    encoder = (contrazip2 (EN.value EN.int4)
+                (EN.value $ EN.array (EN.arrayDimension V.foldl' $
+                                      EN.arrayValue EN.int4)))
+    applyReverts = statement sql1 encoder DE.unit True
+    deleteReverts = statement sql2 encoder DE.unit True
+    sql1 = "UPDATE subscriptions SET ord=\
+           \COALESCE((SELECT ord FROM recent WHERE \
+           \uid=subscriptions.uid and cid=subscriptions.cid ), 0), \
+           \subord=COALESCE((SELECT subord FROM recent WHERE \
+           \uid=subscriptions.uid and cid=subscriptions.cid), 0) \
+           \WHERE subscriptions.uid=$1 AND \
+           \subscriptions.cid = ANY ($2 :: int[])"
+    sql2 = "DELETE FROM recent WHERE uid = $1 and cid = ANY ($2 :: int[])"
 
 titleFetch
   :: Query Int32 (Maybe Text)

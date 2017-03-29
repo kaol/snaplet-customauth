@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 
 module Piperka.Account (renderAccountForm) where
 
@@ -44,10 +45,10 @@ accountSplices n = mapV ($ n) $ do
 accountErrorSplice
   :: RuntimeSplice AppHandler AccountUpdateError
   -> Splice AppHandler
-accountErrorSplice = stdConditionalSplice accountError
+accountErrorSplice = stdConditionalSplice accountError . (fmap (,()))
   where
     accountError (AccountSqlError _) =
-      ("maybeSqlError", WithParam (\ ~(AccountSqlError e) -> return e)
+      ("maybeSqlError", WithParam (\ ~(AccountSqlError e) _ -> return e)
                         (flip withSplices sqlErrorSplices))
     accountError AccountPasswordMissing = ("passwordMissing", Simple)
     accountError AccountPasswordWrong = ("wrongPassword", Simple)

@@ -4,6 +4,7 @@ import Control.Monad.Trans
 import Data.ByteString (ByteString)
 import Data.Int
 import Data.Text (Text)
+import Data.Vector (Vector)
 import Hasql.Session hiding (run)
 import Heist
 import Snap.Snaplet
@@ -46,6 +47,13 @@ unsubscribe
   -> RuntimeSplice AppHandler (Either Error (Int32, Int32))
 unsubscribe uid cid =
   lift $ withTop db $ run $ query (uid, cid) unsubscribeSet
+
+revertUpdates
+  :: Int32
+  -> Vector Int32
+  -> RuntimeSplice AppHandler (Either Error (Int32, Int32))
+revertUpdates uid cids =
+  lift $ withTop db $ run $ query (uid, cids) revertUpdatesSet
 
 getTitle
   :: Integral n

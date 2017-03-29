@@ -17,6 +17,7 @@ import Data.Monoid
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8)
+import qualified Data.Vector as V
 import Data.UUID (toASCIIBytes)
 import qualified Hasql.Session
 import Heist
@@ -29,7 +30,7 @@ import Backend ()
 import qualified Application as A
 import Piperka.Action.Types
 import Piperka.Action.Query
-import Piperka.Util (maybeParseInt, if')
+import Piperka.Util (maybeParseInt, if', maybeParseInt)
 
 processAction
   :: UserPrefsWithStats
@@ -62,6 +63,7 @@ extractAction rq params uid = do
   act <- runExceptT $ sequence_ [ extractSubscribe
                                 , extractUnsubscribe
                                 , extractBookmark
+                                , extractRevert
                                 , extractLogout
                                 ]
   return $ either Just (const Nothing) act
@@ -96,6 +98,10 @@ extractAction rq params uid = do
     extractLogout = do
       let logout = Just "logout" == lookup' "action"
       extract $ if' (Just Logout) Nothing logout
+    extractRevert = do
+      let revert = lookup "revert" params
+      extract $ (Revert . V.fromList . map fromIntegral .
+                 mapMaybe maybeParseInt) <$> revert
 
 perform
   :: Action
@@ -116,6 +122,9 @@ perform (Subscribe cid startAtFirst) True usr uid =
 
 perform (Unsubscribe cid) True usr uid =
   performSql usr $ unsubscribe uid (fromIntegral cid)
+
+perform (Revert cids) True usr uid =
+  performSql usr $ revertUpdates uid cids
 
 perform (Bookmark _) _ usr _ = return usr
 perform (Subscribe cid _) False _ _ = csrfFailWithComic cid
@@ -155,3 +164,4 @@ encodeAction (Subscribe cid startAtFirst) =
   [("subscribe", T.pack $ show cid)] <>
   if startAtFirst then [("start_at_first", "True")] else []
 encodeAction (Unsubscribe cid) = [("unsubscribe", T.pack $ show $ cid)]
+encodeAction (Revert cids) = map (\c -> ("revert", T.pack $ show c)) $ V.toList cids

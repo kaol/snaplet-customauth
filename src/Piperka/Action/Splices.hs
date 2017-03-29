@@ -8,11 +8,11 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Heist
 import Heist.Compiled
-import Heist.Compiled.Extra (eitherDeferMap)
+import Heist.Compiled.Extra (eitherDeferMap, stdConditionalSplice, IndexedAction(..))
 
 import Application
-import Piperka.Action.Types
 import Piperka.Action
+import Piperka.Action.Types
 import Piperka.Error.Splices (sqlErrorSplices)
 
 renderAction
@@ -98,45 +98,46 @@ renderBookmark n = do
 
 renderCsrfFail
   :: RuntimeAppHandler (Maybe ActionError, Maybe Action)
-renderCsrfFail n = do
-  let withTitleSplice = withSplices runChildren
+renderCsrfFail = mayDeferMap maybeCsrfFail
+  (withSplices runChildren $ do
+      "describe" ## stdConditionalSplice failCond
+      "actionInputs" ## \n' -> manyWithSplices runChildren
+                               (mapV (pureSplice . textSplice) $ do
+                                   "name" ## fst
+                                   "value" ## snd) `defer` (encodeAction . fst <$> n')
+  )
+  where
+    withTitleSplice s = withSplices s
                         (mapV (pureSplice . textSplice) $ do
                             "title" ## fst
-                            "cid" ## snd
-                        )
-  let logout = mayDeferMap logoutF (const runChildren)
-      bookmark = mayDeferMap bookmarkF (withSplices runChildren itemPageBinding)
-      subscribe = mayDeferMap subscribeF withTitleSplice
-      unsubscribe = mayDeferMap unsubscribeF withTitleSplice
-      actionInputs n' = manyWithSplices runChildren
-                        (mapV (pureSplice . textSplice) $ do
-                            "name" ## fst
-                            "value" ## snd) `defer` (encodeAction . snd <$> n')
-  mayDeferMap maybeCsrfFail
-    (withSplices runChildren (do "logout" ## logout
-                                 "bookmark" ## bookmark
-                                 "subscribe" ## subscribe
-                                 "unsubscribe" ## unsubscribe
-                                 "actionInputs" ## actionInputs)) n
-  where
-    logoutF (_, Logout) = return $ Just ()
-    logoutF _ = return Nothing
-    bookmarkF (_, Bookmark [x]) = return $ Just x
-    bookmarkF _ = return Nothing
-    subscribeF (Just title, Subscribe cid _) =
-      return $ Just (title, T.pack $ show cid)
-    subscribeF _ = return Nothing
-    unsubscribeF (Just title, Unsubscribe cid) =
-      return $ Just (title, T.pack $ show cid)
-    unsubscribeF _ = return Nothing
+                            "cid" ## snd)
+    failCond Logout =
+      ( "logout", Simple)
+    failCond (Bookmark _) =
+      ( "bookmark"
+      , WithParam (\ ~(Bookmark b) _ ->
+                     return $ case b of [b'] -> Just b'
+                                        _ -> Nothing)
+        (\s -> deferMany (withSplices s $ itemPageBinding)))
+    failCond (Subscribe _ _) =
+      ( "subscribe"
+      , WithParam (\ ~(Subscribe cid _) ~(Just t) ->
+                     return (t, T.pack $ show cid))
+        withTitleSplice)
+    failCond (Unsubscribe _) =
+      ( "unsubscribe"
+      , WithParam (\ ~(Unsubscribe cid) ~(Just t) ->
+                     return (t, T.pack $ show cid))
+        withTitleSplice)
+    failCond (Revert _) = ( "revert", Simple)
 
 maybeCsrfFail
   :: (Maybe ActionError, Maybe Action)
-  -> RuntimeSplice AppHandler (Maybe (Maybe Text, Action))
+  -> RuntimeSplice AppHandler (Maybe (Action, Maybe Text))
 maybeCsrfFail (Just CsrfFail, Just act) =
-  return $ Just (Nothing, act)
+  return $ Just (act, Nothing)
 maybeCsrfFail (Just (CsrfFailWithComic title), Just act) =
-  return $ Just (Just title, act)
+  return $ Just (act, Just title)
 maybeCsrfFail _ = return Nothing
 
 renderSqlErr

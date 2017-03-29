@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ExistentialQuantification #-}
 
 module Heist.Compiled.Extra where
 
@@ -75,14 +75,15 @@ emptySplices' :: [T.Text] -> Splices (b -> Splice a)
 emptySplices' = mapM_ (\x -> x ## const $ return mempty)
 
 data IndexedAction a b n = Simple
-                         | WithParam (a -> RuntimeSplice n b)
-                           (Splice n -> RuntimeSplice n b -> Splice n)
+                         | forall c.
+                           WithParam (a -> b -> RuntimeSplice n c)
+                           (Splice n -> RuntimeSplice n c -> Splice n)
 
 -- TODO: Error handling
 stdConditionalSplice
   :: forall a b n. (Eq a, Bounded a, Enum a, Monad n)
   => (a -> (Text, IndexedAction a b n))
-  -> RuntimeSplice n a
+  -> RuntimeSplice n (a,b)
   -> Splice n
 stdConditionalSplice act n = do
   node <- getParamNode
@@ -93,7 +94,7 @@ stdConditionalSplice act n = do
         return (i, x)
       makeSplice (t, WithParam f m, i) = do
         let s' = cs M.! t
-        x <- deferMap f (m s') n
+        x <- deferMap (uncurry f) (m s') n
         return (i, x)
       unfoldrCond f = f minBound :
         unfoldr (\a -> if a == maxBound
@@ -101,6 +102,6 @@ stdConditionalSplice act n = do
                        else let a' = succ a in Just (f a', a')) minBound
       nodeNames = unfoldrCond $ fst . act
       actions = unfoldrCond $ snd . act
-  m <- I.fromList <$> (mapM makeSplice $ zip3 nodeNames actions $ map (fromEnum :: a -> Int)
+  m <- I.fromList <$> (mapM makeSplice $ zip3 nodeNames actions $ map fromEnum
                        (enumFromTo minBound maxBound :: [a]))
-  flip bindLater n $ \x -> codeGen $ m I.! fromEnum x
+  flip bindLater n $ \x -> codeGen $ m I.! (fromEnum $ fst x)

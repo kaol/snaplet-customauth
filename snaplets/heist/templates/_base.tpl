@@ -120,21 +120,26 @@
 	  <h:ifLoggedIn>
 	    <h:csrfFail>
 	      You tried to
-	      <h:logout>log out</h:logout>
-	      <h:bookmark>
-		set bookmark
-		for <a href="info.html?cid=${h:cid}"><h:title/></a>
-		on <h:newest>newest page</h:newest><h:notNewest>page
-		<h:ord/></h:notNewest>.
-	      </h:bookmark>
-	      <h:subscribe>
-		subscribe
-		to <a href="info.html?cid=${h:cid}"><h:title/></a>
-	      </h:subscribe>
-	      <h:unsubscribe>
-		unsubscribe
-		from <a href="info.html?cid=${h:cid}"><h:title/></a>
-              </h:unsubscribe>
+	      <h:describe>
+		<logout>log out</logout>
+		<bookmark>
+		  set bookmark
+		  for <a href="info.html?cid=${h:cid}"><h:title/></a>
+		  on <h:newest>newest page</h:newest>
+		  <h:notNewest>page<h:ord/></h:notNewest>.
+		</bookmark>
+		<subscribe>
+		  subscribe
+		  to <a href="info.html?cid=${h:cid}"><h:title/></a>
+		</subscribe>
+		<unsubscribe>
+		  unsubscribe
+		  from <a href="info.html?cid=${h:cid}"><h:title/></a>
+		</unsubscribe>
+		<revert>
+		  revert updates
+		</revert>
+	      </h:describe>
 	      but this action failed the check to see that this request
 	      originated from Piperka.  Please verify that you meant to
 	      do this.
