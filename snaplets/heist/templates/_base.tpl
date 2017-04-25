@@ -40,6 +40,13 @@
 	      <a href="updates.html">Check updates</a> <h:unreadStats/>
 	      <br/><a href="account.html">Your account</a>
 	      <br/><a href="/?action=logout&csrf_ham=${h:csrf}">Logout</a>
+	      <h:ifMod>
+		<hr/>
+		<a href="moderate.html">Moderate</a>
+		<h:modStats>
+		  <h:haveModCount>(<h:modCount/>)</h:haveModCount>
+		</h:modStats>
+	      </h:ifMod>
 	    </h:ifLoggedIn>
 	    <h:ifLoggedOut>
 	      <form method="post" action="updates.html" style="padding-bottom:10px">

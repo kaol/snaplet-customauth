@@ -9,12 +9,9 @@ module Piperka.ComicInfo.Splices
   where
 
 import Control.Error.Util
-import Control.Monad
 import Control.Monad.Trans
 import Control.Monad.Trans.Except
-import Control.Monad.Trans.Maybe
 import Control.Lens (view)
-import qualified Data.ByteString.Char8 as B
 import Data.Maybe
 import Data.Monoid
 import Data.Map.Syntax
@@ -32,7 +29,7 @@ import Application
 import Piperka.ComicInfo.Query
 import Piperka.ComicInfo.Types
 import Piperka.Error.Splices
-import Piperka.Util (formatTime', if')
+import Piperka.Util (formatTime', if', getCid)
 
 -- When used as a top level splice
 renderComicInfo
@@ -84,12 +81,7 @@ render
   -> RuntimeAppHandler ComicInfoError
   -> RuntimeAppHandler UserPrefs
 render deadPage success failure n = do
-  let getCid p = runMaybeT $ do
-        raw <- MaybeT $ lift $ getParam "cid"
-        (c,x) <- hoistMaybe $ B.readInt raw
-        guard $ B.null x
-        return (raw, (c, p))
-
+  let getCid' p = (fmap (\(a,b) -> (a,(b,p)))) <$> getCid
   let getData b = do
         tlookup <- lift $ view taglookup
         elookup <- lift $ view extlookup
@@ -101,7 +93,7 @@ render deadPage success failure n = do
           info <- ExceptT $ (if deadPage then getDeadInfo else getInfo) c p
           return info
 
-  deferMap getCid
+  deferMap getCid'
     (\n' -> withSplices (eitherDeferMap getData failure success $ n')
             ("cid" ## pureSplice . textSplice $
              maybe "" (T.decodeLatin1 . fst)) n') n

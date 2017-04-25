@@ -13,10 +13,14 @@ module Piperka.Util
   , monadicTuple3
   , randomString
   , getParamText
+  , getCid
   ) where
 
-import Control.Error.Util (hush)
+import Control.Error.Util (hush, hoistMaybe)
 import Control.Monad
+import Control.Monad.Trans.Class
+import Control.Monad.Trans.Maybe
+import Heist (RuntimeSplice)
 import Network.HTTP.Types.URI (Query, encodePath, urlEncode)
 import Blaze.ByteString.Builder (Builder, toByteString)
 import Blaze.ByteString.Builder.ByteString (fromByteString)
@@ -108,3 +112,12 @@ getParamText
   => ByteString
   -> f (Maybe Text)
 getParamText name = (hush . decodeUtf8' =<<) <$> getParam name
+
+getCid
+  :: MonadSnap n
+  => RuntimeSplice n (Maybe (ByteString, Int))
+getCid = runMaybeT $ do
+  raw <- MaybeT $ lift $ getParam "cid"
+  (c,x) <- hoistMaybe $ B.readInt raw
+  guard $ B.null x
+  return (raw, c)

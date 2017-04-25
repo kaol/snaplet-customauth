@@ -12,6 +12,7 @@ module Application
   , AppHandler
   , RuntimeAppHandler
   , UserID
+  , AppInit(..)
   , auth
   , apiAuth
   , heist
@@ -27,9 +28,7 @@ module Application
 
 import Piperka.Listing.Types (ViewColumns)
 
---import Control.Applicative
 import Control.Lens
---import Data.Maybe
 import Snap.Snaplet
 import Snap.Snaplet.Heist
 import Snap.Snaplet.CustomAuth
@@ -53,6 +52,7 @@ data MyData = MyData
   , uname :: T.Text
   , usession :: UUID
   , ucsrfToken :: UUID
+  , moderator :: Bool
   } deriving (Show)
 
 data UserPrefs = UserPrefs
@@ -65,6 +65,7 @@ data UserPrefs = UserPrefs
 data UserPrefsWithStats = UserPrefsWithStats
   { newComics :: Int32
   , unreadCount :: (Int32,Int32)
+  , modStats :: Maybe (Int32, Int32)
   , prefs :: UserPrefs
   } deriving (Show)
 
@@ -78,12 +79,18 @@ data App = App
   , _taglookup :: [Int] -> [ComicTag]
   }
 
+data AppInit = AppInit
+  { extFormPart :: Text
+  , tagFormPart :: Text
+  }
+
 makeLenses ''App
 
 defaultUserPrefsWithStats :: UserPrefsWithStats
 defaultUserPrefsWithStats = UserPrefsWithStats
   { newComics = 0
   , unreadCount = (0,0)
+  , modStats = Nothing
   , prefs = defaultUserPrefs
   }
 

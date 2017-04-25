@@ -11,7 +11,11 @@ import Data.Monoid
 import Data.List
 import Data.Text (Text)
 import qualified Data.Text as T
+import Data.Text.Encoding (decodeUtf8')
 import Data.Text.Read
+import System.Exit
+import System.Process hiding (readCreateProcessWithExitCode)
+import System.Process.ByteString
 import qualified Text.XmlHtml as X
 import Text.XmlHtml (Node)
 
@@ -57,3 +61,13 @@ mkLookup
 mkLookup ts used = filter match ts
   where
     match = flip S.member (S.fromList used) . tagid
+
+generateTagFormPart
+  :: IO (Either String Text)
+generateTagFormPart = do
+  let cfg = System.Process.shell "xsltproc x/tags.xslt x/tags.xml | \
+                                 \xpath -e '//body/*/' /dev/stdin 2>/dev/null"
+  status <- readCreateProcessWithExitCode cfg ""
+  case status of
+    (ExitSuccess, out, _) -> return $ either (Left . show) Right $ decodeUtf8' out
+    (ExitFailure i, _, err) -> return $ Left $ ((show i) ++ " " ++ (show err))

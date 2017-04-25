@@ -37,6 +37,7 @@ import Piperka.Action.Types
 import Piperka.Splices.Account
 import Piperka.Splices.Flavor
 import Piperka.Splices.Revert
+import Piperka.Submit.Splices
 import Piperka.Listing.Render
 import Piperka.ComicInfo.Splices
 import Piperka.Messages
@@ -55,25 +56,28 @@ accountCreationFailed content n = do
   withSplices content (accountCreateFailSplices <> nullStatsSplices) n
 
 piperkaSplices
-  :: Splices (C.Splice AppHandler)
-piperkaSplices = do
-  "piperka" ## renderPiperka
+  :: AppInit
+  -> Splices (C.Splice AppHandler)
+piperkaSplices ini = do
+  "piperka" ## renderPiperka ini
 -- Splice definition overridden if used via withCid.
-  "comicInfo" ## renderMinimal renderComicInfo
+  "comicInfo" ## renderMinimal ini renderComicInfo
   <> messagesSplices
 
 renderMinimal
-  :: RuntimeAppHandler UserPrefs
+  :: AppInit
+  -> RuntimeAppHandler UserPrefs
   -> C.Splice AppHandler
-renderMinimal action =
-  (\n -> withSplices (action n) contentSplices' n) `C.defer`
+renderMinimal ini action =
+  (\n -> withSplices (action n) (contentSplices' ini) n) `C.defer`
   (fromMaybe defaultUserPrefs <$>
    (lift $ withTop apiAuth $ combinedLoginRecover loginFailed))
 
 renderContent
-  :: [X.Node]
+  :: AppInit
+  -> [X.Node]
   -> RuntimeAppHandler UserPrefs
-renderContent ns = C.withSplices (C.runNodeList ns) contentSplices'
+renderContent ini ns = C.withSplices (C.runNodeList ns) $ contentSplices' ini
 
 prefsMayCreate
   :: ExceptT (CreateFailure Hasql.Session.Error) (RuntimeSplice AppHandler)
@@ -89,17 +93,23 @@ prefsMayCreate = do
             (const $ lift $ lift $ redirect' "/welcome.html" 303)
        else return Nothing
 
+getParamAttrBool
+  :: T.Text
+  -> HeistT AppHandler IO Bool
+getParamAttrBool n =
+  maybe False (read . T.unpack) . X.getAttribute n <$> getParamNode
+
 renderPiperka
-  :: C.Splice AppHandler
-renderPiperka = do
-  mayCreateUser <- maybe False (read . T.unpack) . X.getAttribute "newUser" <$>
-                   getParamNode
+  :: AppInit
+  -> C.Splice AppHandler
+renderPiperka ini = do
+  mayCreateUser <- getParamAttrBool "newUser"
   xs <- X.childNodes <$> getParamNode
   let prefsWithStats = lift $ withTop auth $ combinedLoginRecover loginFailed
   let getInner n = do
-        content <- renderContent xs $ snd <$> n
+        content <- renderContent ini xs $ snd <$> n
         C.withSplices (C.callTemplate "_base")
-          (contentSplices content) n
+          (contentSplices ini content) n
       defaultInner = getInner $ return (Nothing, defaultUserPrefs)
       renderInner s n = let inner = getInner $ (\(a, p) -> (a, prefs p)) <$> n
                         in C.withSplices inner (statsSplices <> s) n
@@ -113,8 +123,9 @@ renderPiperka = do
             else
               renderInner mempty `C.defer`
               (processAction =<< fromMaybe defaultUserPrefsWithStats <$> prefsWithStats)
-  bare <- renderMinimal $ nullCreateSplice .
-          C.withSplices (C.runNodeList xs) contentSplices'
+  bare <- renderMinimal ini $ nullCreateSplice .
+          (C.withSplices (C.runNodeList xs)
+           ((contentSplices' ini) <> ("onlyWithStats" ## const $ return mempty)))
   return $ yieldRuntime $ do
     useMinimal <- lift $ isJust <$> getParam "minimal"
     codeGen $ if useMinimal then bare else normal
@@ -138,23 +149,41 @@ statsSplices = mapV (. fmap snd) $ do
     flip bindLater n $ \stats -> do
       let new = newComics stats
       if new > 0 then codeGen content else return mempty
+  "modStats" ## \n -> do
+    let modSplices =
+          (mapV (C.pureSplice . C.textSplice . (fmap (T.pack . show))) $ do
+              "modCount" ## fst
+              "modDays" ## snd
+          )
+          <> ("haveModCount" ## C.conditionalChildren (const C.runChildren) ((>0) . fst))
+          <> ("nag" ## C.conditionalChildren (const C.runChildren) ((>6) . snd))
+    spl <- C.mayDeferMap (return . modStats)
+           (C.withSplices C.runChildren modSplices) n
+    return $ yieldRuntime $ do
+      m <- maybe False moderator . (user . prefs) <$> n
+      if m then C.codeGen spl else return mempty
+  "onlyWithStats" ## const $ C.runChildren
 
 nullStatsSplices
   :: Splices (RuntimeAppHandler a)
 nullStatsSplices = mapV (const . return) $ do
   "unreadStats" ## mempty
   "newLink" ## mempty
+  "modStats" ## mempty
+  "onlyWithStats" ## mempty
 
 contentSplices
-  :: DList (Chunk AppHandler)
+  :: AppInit
+  -> DList (Chunk AppHandler)
   -> Splices (RuntimeAppHandler (Maybe (Maybe ActionError, Maybe Action), UserPrefs))
-contentSplices content =
+contentSplices ini content =
   ("action" ## renderAction $ return content) <>
-  (mapV (. fmap snd)) contentSplices'
+  (mapV (. fmap snd)) (contentSplices' ini)
 
 contentSplices'
-  :: Splices (RuntimeAppHandler UserPrefs)
-contentSplices' = do
+  :: AppInit
+  -> Splices (RuntimeAppHandler UserPrefs)
+contentSplices' ini = do
   "subscribeForm" ## const $ callTemplate "_subscribe"
   "kaolSubs" ## renderKaolSubs
   "ifLoggedIn" ## C.deferMany (C.withSplices C.runChildren loggedInSplices) .
@@ -162,6 +191,13 @@ contentSplices' = do
   "ifLoggedOut" ## C.conditionalChildren
     (const C.runChildren)
     (isNothing . user)
+  "notMod" ## \n -> do
+    spl <- runChildren
+    return $ yieldRuntime $ do
+      m <- maybe False moderator . user <$> n
+      if m
+        then return mempty
+        else lift (modifyResponse $ setResponseCode 403) >> codeGen spl
   "listing" ## renderListing
   "externA" ## renderExternA
   "withCid" ## renderWithCid
@@ -170,6 +206,10 @@ contentSplices' = do
   "usePasswordHash" ## renderUsePasswordHash
   "accountForm" ## renderAccountForm
   "recent" ## renderRecent
+  "submit" ## \n -> renderSubmit ini n
+  "ifMod" ## C.conditionalChildren
+    (const C.runChildren)
+    (maybe False moderator . user)
 
 loggedInSplices
   :: Splices (RuntimeAppHandler MyData)
@@ -177,6 +217,7 @@ loggedInSplices = do
   "loggedInUser" ## C.pureSplice . C.textSplice $ HTML.text . uname
   "csrf" ## C.pureSplice . C.textSplice $ toText . ucsrfToken
   "profileLink" ## profileLink
+  "listOfEdits" ## renderListOfEdits
 
 profileLink
   :: RuntimeAppHandler MyData

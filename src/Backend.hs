@@ -11,8 +11,12 @@ module Backend ( ) where
 import Piperka.Listing.Types
 
 import Contravariant.Extras.Contrazip
+import Control.Applicative
 import Control.Monad.Trans.Except
 import Data.ByteString (ByteString)
+import Data.Functor.Contravariant
+import Data.Maybe
+import Data.Monoid
 import qualified Data.Text as T
 import Data.Text (Text)
 import Data.Text.Encoding
@@ -26,10 +30,8 @@ import Hasql.Session (Error)
 import qualified Hasql.Encoders as EN
 import qualified Hasql.Decoders as DE
 import Hasql.Session (query)
-import Data.Functor.Contravariant
-import Data.Monoid
-import Control.Applicative
-import Data.Maybe
+
+import Piperka.Util (monadicTuple2)
 
 encodeLoginPasswd :: EN.Params (T.Text, T.Text)
 encodeLoginPasswd =
@@ -43,6 +45,7 @@ userRow x =
   <*> DE.value DE.text
   <*> x
   <*> DE.value DE.uuid
+  <*> DE.value DE.bool
 
 prefsRow :: DE.Row UUID -> DE.Row UserPrefs
 prefsRow x =
@@ -60,6 +63,9 @@ prefsStatsRow x =
                                 <$> DE.compositeValue DE.int4
                                 <*> DE.compositeValue DE.int4
                                 <*> DE.compositeValue DE.int4))
+  <*> liftA monadicTuple2 ((,)
+                           <$> DE.nullableValue DE.int4
+                           <*> DE.nullableValue DE.int4)
   <*> prefsRow x
 
 prefsDefaultRow :: Text -> DE.Row UserPrefs
@@ -71,6 +77,7 @@ prefsDefaultRow n =
        <*> pure n
        <*> DE.value DE.uuid
        <*> DE.value DE.uuid
+       <*> DE.value DE.bool
       )
   <*> pure (rows defaultUserPrefs)
   <*> pure (columns defaultUserPrefs)
@@ -78,7 +85,7 @@ prefsDefaultRow n =
 
 prefsStatsDefaultRow :: Text -> DE.Row UserPrefsWithStats
 prefsStatsDefaultRow n =
-  UserPrefsWithStats 0 (0,0)
+  UserPrefsWithStats 0 (0,0) Nothing
   <$> prefsDefaultRow n
 
 doLogin
@@ -160,13 +167,16 @@ instance IAuthBackend UserPrefs Error App where
   check = doCheck
   create u pwd = doCreate u pwd $ DE.singleRow $ prefsDefaultRow u
   login u pwd = doLogin u pwd prefsRow
-                "select uid, name, p_session, csrf_ham, display_rows, \
-                \display_columns, new_windows \
+                "select uid, name, p_session, csrf_ham, \
+                \uid in (select uid from moderator) as moderator, \
+                \display_rows, display_columns, new_windows \
                 \from auth_login($1, $2) join users using (uid)"
   logout = doLogout
   recover t = doRecover t prefsRow
-              "select uid, name, csrf_ham, display_rows, display_columns, \
-              \new_windows from recover_session($1) join users using (uid)"
+              "select uid, name, csrf_ham, \
+              \uid in (select uid from moderator) as moderator, \
+              \display_rows, display_columns, new_windows \
+              \from recover_session($1) join users using (uid)"
 
 -- Side effect: updates last read stats on login/recover
 instance IAuthBackend UserPrefsWithStats Error App where
@@ -174,15 +184,27 @@ instance IAuthBackend UserPrefsWithStats Error App where
   create u pwd = doCreate u pwd $ DE.singleRow $ prefsStatsDefaultRow u
   login u pwd = doLogin u pwd prefsStatsRow
                 "select (select (new_comics, total_new, new_in) from \
-                \get_and_update_stats(uid, true)), uid, name, p_session, \
-                \csrf_ham, display_rows, display_columns, new_windows \
-                \from auth_login($1, $2) join users using (uid)"
+                \get_and_update_stats(uid, true)), \
+                \mod_queue, cast(mod_days as int), \
+                \uid, name, p_session, csrf_ham, coalesce(moderator, false), \
+                \display_rows, display_columns, new_windows \
+                \from auth_login($1, $2) join users using (uid) left join \
+                \(select uid, true as moderator, (select count(*) from user_edit \
+                \where cid in (select cid from comics)) as mod_queue, \
+                \extract(days from now() - last_moderate) as mod_days \
+                \from moderator) as m using (uid)"
   logout = doLogout
   recover t = doRecover t prefsStatsRow
               "select (select (new_comics, total_new, new_in) from \
-              \get_and_update_stats(uid, false)), uid, name, csrf_ham, \
+              \get_and_update_stats(uid, false)), \
+              \mod_queue, cast(mod_days as int), \
+              \uid, name, csrf_ham, coalesce(moderator, false), \
               \display_rows, display_columns, new_windows \
-              \from recover_session($1) join users using (uid)"
+              \from recover_session($1) join users using (uid) left join \
+              \(select uid, true as moderator, (select count(*) from user_edit \
+              \where cid in (select cid from comics)) as mod_queue, \
+              \extract(days from now() - last_moderate) as mod_days \
+              \from moderator) as m using (uid)"
 
 instance UserData MyData where
   extractUser MyData{..} = AuthUser

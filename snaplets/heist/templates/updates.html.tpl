@@ -13,6 +13,18 @@
   </h:ifLoggedOut>
   <h:ifLoggedIn>
     <h2>Set bookmark</h2>
+    <h:ifMod>
+      <h:onlyWithStats>
+	<h:modStats>
+	  <h:nag>
+	    <p>
+	      It's <h:modDays/> days since you last
+	      <a href="/moderate.html">moderated</a>.  Pretty please?
+            </p>
+	  </h:nag>
+	</h:modStats>
+      </h:onlyWithStats>
+    </h:ifMod>
     <form method="post" action="updates.html">
       <input type="hidden" name="csrf_ham" value="${h:csrf}"/>
       <p>URL: <input type="text" name="bookmark"/>

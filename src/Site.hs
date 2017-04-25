@@ -11,6 +11,7 @@ module Site
 
 ------------------------------------------------------------------------------
 import           Control.Applicative
+import Control.Concurrent.ParallelIO.Local
 import Control.Monad.Trans
 import           Data.ByteString (ByteString)
 --import           Data.Monoid
@@ -48,8 +49,19 @@ staticRoutes =
 -}
 
 
+data ParLabels a b c = L1 a | L2 b | L3 c
+
 app :: SnapletInit App App
 app = makeSnaplet "piperka" "Piperka application." Nothing $ do
+  [~(L1 elookup), ~(L2 tlookup), ~(L3 tfp), ~(L3 efp)] <- liftIO $
+    (map $ either error id) <$>
+    withPool 4 (flip parallel
+                [ (fmap L1) <$> generateExternal
+                , (fmap L2) <$> generateTag
+                , (fmap L3) <$> generateTagFormPart
+                , (fmap L3) <$> generateExternalFormPart
+                ])
+  let initData = AppInit efp tfp
   a <- nestSnaplet "" auth $ authInit "_session" "_login" "_password"
   a' <- nestSnaplet "" apiAuth $ authInit "_session" "_login" "_password"
   m <- nestSnaplet "messages" messages $
@@ -58,13 +70,11 @@ app = makeSnaplet "piperka" "Piperka application." Nothing $ do
        emptyHeistConfig
        & hcLoadTimeSplices .~ defaultLoadTimeSplices
        & hcNamespace .~ "h"
-       & hcCompiledSplices .~ piperkaSplices
+       & hcCompiledSplices .~ (piperkaSplices initData)
        & hcTemplateLocations .~ [loadTemplates "templates"]
   d <- nestSnaplet "" db $ hasqlInit "postgresql://kaol@/piperka"
   addRoutes routes
 -- TODO: This opens DB handles for things that never need it like
 -- static content.  Cull the uses.
   wrapSite (<|> bracketDbOpen heistServe)
-  elookup <- either error id <$> liftIO generateExternal
-  tlookup <- either error id <$> liftIO generateTag
   return $ App h a a' d m elookup tlookup

@@ -2,7 +2,7 @@
 
 -- Read and parse external entries from XML at splice compile time
 
-module Piperka.ComicInfo.External (generateExternal) where
+module Piperka.ComicInfo.External (generateExternal, generateExternalFormPart) where
 
 import Control.Error.Util (hush)
 import Control.Monad
@@ -10,6 +10,10 @@ import qualified Data.ByteString as B
 import Data.List
 import Data.Text (Text)
 import Data.Text.Read
+import Data.Text.Encoding (decodeUtf8')
+import System.Exit
+import System.Process hiding (readCreateProcessWithExitCode)
+import System.Process.ByteString
 import qualified Text.XmlHtml as X
 import Text.XmlHtml (Node)
 
@@ -44,3 +48,13 @@ mkEntry x = do
 
 mkLookup :: (Eq a, MonadPlus m) => [(a, b -> c)] -> a -> b -> m c
 mkLookup el = maybe (const mzero) (return .) . flip lookup el
+
+generateExternalFormPart
+  :: IO (Either String Text)
+generateExternalFormPart = do
+  let cfg = System.Process.shell "xsltproc x/epedias.xslt x/epedias.xml | \
+                                 \xpath -e '//body/*/' /dev/stdin 2>/dev/null"
+  status <- readCreateProcessWithExitCode cfg ""
+  case status of
+    (ExitSuccess, out, _) -> return $ either (Left . show) Right $ decodeUtf8' out
+    (_, _, err) -> return $ Left $ show err
