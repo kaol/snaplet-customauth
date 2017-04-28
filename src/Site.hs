@@ -74,7 +74,5 @@ app = makeSnaplet "piperka" "Piperka application." Nothing $ do
        & hcTemplateLocations .~ [loadTemplates "templates"]
   d <- nestSnaplet "" db $ hasqlInit "postgresql://kaol@/piperka"
   addRoutes routes
--- TODO: This opens DB handles for things that never need it like
--- static content.  Cull the uses.
   wrapSite (<|> bracketDbOpen heistServe)
   return $ App h a a' d m elookup tlookup

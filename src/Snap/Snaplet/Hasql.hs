@@ -3,6 +3,8 @@
 
 module Snap.Snaplet.Hasql where
 
+import Control.Monad.Trans.Except
+import Data.IORef
 import qualified Hasql.Connection as C
 import qualified Hasql.Query as Q
 import qualified Hasql.Encoders as E
@@ -17,7 +19,8 @@ class HasHasql m where
   getHasqlState :: m Hasql
   setHasqlState :: Hasql -> m ()
 
-data Hasql = HasqlSettings C.Settings | HasqlConnection C.Connection C.Settings
+data Hasql = HasqlSettings C.Settings
+           | HasqlConnection (IORef (Maybe C.Connection)) C.Settings
 
 hasqlInit :: C.Settings -> SnapletInit b Hasql
 hasqlInit s = makeSnaplet "hasql" "Hasql Snaplet" Nothing $ do
@@ -29,23 +32,20 @@ commit = S.query () $ Q.statement "commit" E.unit D.unit True
 begin :: S.Session ()
 begin = S.query () $ Q.statement "begin" E.unit D.unit True
 
-releaseHasql :: (HasHasql m, MonadIO m) => m ()
-releaseHasql = do
-  s <- getHasqlState
-  case s of
-   (HasqlSettings _) -> return ()
-   (HasqlConnection c s') -> do
-     liftIO $ do
-       S.run commit c
-       C.release c
-     setHasqlState (HasqlSettings s')
-
 run :: (HasHasql m, MonadIO m) => S.Session a -> m (Either S.Error a)
-run s = do
-  c' <- getHasqlState
-  case c' of
-   HasqlConnection c _ -> liftIO $ S.run s c
-   HasqlSettings _ -> error "connection not open"
+run session = do
+  state <- getHasqlState
+  case state of
+   HasqlConnection ref s -> liftIO $ runExceptT $ do
+     let initSession = do
+           c <- catchE (ExceptT $ liftIO $ C.acquire s)
+                (throwE . S.ClientError)
+           liftIO $ writeIORef ref $ Just c
+           ExceptT $ liftIO $ S.run begin c
+           return c
+     c <- maybe initSession return =<< liftIO (readIORef ref)
+     ExceptT $ liftIO (S.run session c)
+   HasqlSettings _ -> error "connection IORef not initialized"
 
 wrapDbOpen :: (HasHasql (Handler b v)) => Initializer b v ()
 wrapDbOpen = wrapSite bracketDbOpen
@@ -58,16 +58,14 @@ bracketDbOpen :: (HasHasql (Handler b v)) => Handler b v () -> Handler b v ()
 bracketDbOpen site = do
   s' <- getHasqlState
   case s' of
-   (HasqlSettings s) -> do
-     bracketHandler (C.acquire s) release (workSite s)
-   (HasqlConnection _ _) -> return ()
+    (HasqlSettings s) -> do
+      bracketHandler (newIORef Nothing) maybeRelease (workSite s)
+    (HasqlConnection _ _) -> error "should not happen"
   where
-    release (Right c) = S.run commit c >> C.release c
-    release (Left _) = return ()
-    workSite s (Right c) = do
-      setHasqlState (HasqlConnection c s)
-      liftIO $ S.run begin c
+    -- TODO: What to do if commit fails?
+    maybeRelease ref = readIORef ref >>=
+      maybe (return ()) (\c -> S.run commit c >> C.release c)
+    workSite s ref = do
+      setHasqlState (HasqlConnection ref s)
       site
       setHasqlState (HasqlSettings s)
--- TODO
-    workSite _ (Left err) = do error $ show err
