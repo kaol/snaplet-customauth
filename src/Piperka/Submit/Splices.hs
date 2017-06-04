@@ -79,7 +79,7 @@ renderSubmit ini n = do
           ((hush . decodeUtf8') =<<) <$> (lift $ getParam "pre_homepage")
      else return mempty) n
   where
-    getCid' = (fmap snd) <$> getCid
+    getCid' = fmap snd <$> lift getCid
 
 getTitleHomepage
   :: Int

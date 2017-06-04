@@ -81,7 +81,7 @@ render
   -> RuntimeAppHandler ComicInfoError
   -> RuntimeAppHandler UserPrefs
 render deadPage success failure n = do
-  let getCid' p = (fmap (\(a,b) -> (a,(b,p)))) <$> getCid
+  let getCid' p = fmap (\(a,b) -> (a,(b,p))) <$> lift getCid
   let getData b = do
         tlookup <- lift $ view taglookup
         elookup <- lift $ view extlookup

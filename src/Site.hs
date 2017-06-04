@@ -18,6 +18,7 @@ import           Data.ByteString (ByteString)
 --import qualified Data.Text as T
 --import           Snap.Core
 import           Snap.Snaplet
+import Snap.Snaplet.Heist
 import           Snap.Snaplet.Heist.Compiled
 import Snap.Snaplet.Session.Backends.CookieSession
 --import           Snap.Util.FileServe
@@ -33,12 +34,23 @@ import           Piperka.Splices
 import Control.Lens
 import Piperka.ComicInfo.Tag
 import Piperka.ComicInfo.External
+import Piperka.API
 
 ------------------------------------------------------------------------------
 -- | The application's routes.
 routes :: [(ByteString, Handler App App ())]
 routes =
+  map (\(a,b) -> (a, bracketDbOpen b))
   [
+    ("/s/cinfo/:cid", comicInfo)
+  , ("/s/qsearch", quickSearch)
+  , ("/s/tagslist/:tagid", tagList)
+  , ("/s/uprefs", userPrefs)
+  -- Moderator interface
+  , ("/s/sinfo/:sid", readSubmit)
+  , ("/s/sinfo2/:sid", readSubmit)
+  , ("/s/dropsubmit/:sid", dropSubmit)
+  , ("/s/viewsubmitbanner/:sid", viewSubmitBanner)
   ]
 
 {-

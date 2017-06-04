@@ -12,11 +12,12 @@ import Data.ByteString (ByteString)
 import Data.Int
 import Data.Maybe
 import Data.Monoid
+import Data.String (IsString)
 import Data.Vector hiding ((++), map)
 import Hasql.Query
 import Prelude hiding (Ordering)
 
-parseOrdering :: String -> Ordering
+parseOrdering :: (IsString a, Eq a) => a -> Ordering
 parseOrdering "new" = NewDesc
 parseOrdering "update" = UpdateDesc
 parseOrdering "top" = TopDesc
