@@ -1,14 +1,24 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Piperka.Account.Action (accountUpdates) where
+module Piperka.Account.Action (accountUpdates, privUpdateConfirmed) where
 
+import Control.Error.Util
 import Control.Monad.State
 import Control.Monad.Trans.Except
+import Control.Monad.Trans.Maybe
+import Data.Binary (decodeOrFail)
+import Data.ByteString (ByteString)
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Base64
+import Data.Text.Encoding (decodeLatin1, encodeUtf8)
+import Data.ByteString.Lazy (fromStrict)
 import qualified Data.Map.Lazy as M
-import Data.Maybe (fromJust, listToMaybe)
+import Data.Maybe (fromJust, listToMaybe, fromMaybe, catMaybes)
 import Data.Text (Text)
 import qualified Data.Text as T
-import Snap.Core
+import Snap
+import Snap.Snaplet.CustomAuth (Provider, parseProvider)
+import Snap.Snaplet.Session
 import Text.HTML.TagSoup
 
 import Application
@@ -16,7 +26,7 @@ import Piperka.Account.Types
 import Piperka.Account.Query
 import Piperka.Listing.Types (intToColumns)
 import Piperka.Profile.Types (intToPrivacy)
-import Piperka.Util (maybeParseInt, maybeDecodeText)
+import Piperka.Util (maybeParseInt, maybeDecodeText, firstSuccess)
 
 getAccountUpdateUnpriv
   :: Params
@@ -30,12 +40,17 @@ getAccountUpdatePriv
   :: Params
   -> Maybe AccountUpdate
 getAccountUpdatePriv p = AccountUpdatePriv
-  <$> ((maybeDecodeText . head) =<< M.lookup "_password" p)
-  <*> (pure $ (maybeDecodeText . head) =<< M.lookup "new_passwd" p)
-  <*> (pure $ (maybeDecodeText . head) =<< M.lookup "new_passwd_retype" p)
-  <*> (pure $ (maybeDecodeText . head) =<< M.lookup "new_email" p)
-  <*> (intToPrivacy <$> ((maybeParseInt . head) =<< M.lookup "privacy" p))
-  <*> (pure $ sanitizeUserHTML <$> ((maybeDecodeText . head) =<< M.lookup "writeup" p))
+  <$> (pure $
+       (fromMaybe (Password $ fromMaybe ""
+                   (maybeDecodeText =<< listToMaybe =<< M.lookup "_password" p))
+        (fmap OAuth2 . parseProvider =<< listToMaybe =<< M.lookup "authenticate_with" p)))
+  <*> (pure $ maybeDecodeText =<< listToMaybe =<< M.lookup "new_passwd" p)
+  <*> (pure $ maybeDecodeText =<< listToMaybe =<< M.lookup "new_passwd_retype" p)
+  <*> (pure $ maybeDecodeText =<< listToMaybe =<< M.lookup "new_email" p)
+  <*> (intToPrivacy <$> (maybeParseInt =<< listToMaybe =<< M.lookup "privacy" p))
+  <*> (pure $ sanitizeUserHTML <$> (maybeDecodeText =<< listToMaybe =<< M.lookup "writeup" p))
+  <*> (pure $ (catMaybes . map parseProvider) (fromMaybe [] $ M.lookup "remove_oauth2" p))
+  <*> (pure $ fromMaybe False $ fmap (not . B.null) $ listToMaybe =<< M.lookup "only_oauth2" p)
 
 isValidURL
   :: Text
@@ -81,15 +96,37 @@ tryUpdate p a@(AccountUpdateUnpriv n r c) = let u = uid $ fromJust $ user p in
   where
     updatedPrefs = p {newExternWindows = n, rows = r, columns = c}
 
-tryUpdate p a@(AccountUpdatePriv _ _ _ _ _ _) = runExceptT $ do
+tryUpdate p a@(AccountUpdatePriv _ _ _ _ _ _ _ _) = runExceptT $ do
   let u = uid $ fromJust $ user p
-  updateErr <- withExceptT AccountSqlError $ ExceptT $ tryUpdatePriv u a
-  maybe (return p) throwE updateErr
+  ExceptT $ validatePriv u a
+  withExceptT AccountSqlError $ ExceptT $ tryUpdatePriv u a
+  return p
+
+tryUpdate p a@(AttachProvider _) = undefined
 
 accountUpdates
   :: UserPrefs
   -> AppHandler (Either AccountUpdateError UserPrefs)
 accountUpdates p = do
   params <- getParams
-  let update = getAccountUpdateUnpriv params `mplus` getAccountUpdatePriv params
+  update <- runMaybeT $ firstSuccess $ [
+      MaybeT . return $ getAccountUpdateUnpriv params
+    , MaybeT . return $ getAccountUpdatePriv params
+    , MaybeT $ withTop messages $ runMaybeT $ do
+        saved <- encodeUtf8 <$> (MaybeT $ getFromSession "p_priv")
+        lift $ deleteFromSession "p_priv" >> commitSession
+        MaybeT . return $ (\(_,_,x) -> x) <$>
+          (hush . decodeOrFail . fromStrict =<< (hush $ Data.ByteString.Base64.decode saved))
+    ]
   maybe (return $ Right p) (tryUpdate p) update
+
+privUpdateConfirmed
+  :: Provider
+  -> Text
+  -> ByteString
+  -> AppHandler ()
+privUpdateConfirmed provider token d = do
+  withTop messages $ do
+    setInSession "p_priv" (decodeLatin1 $ Data.ByteString.Base64.encode d)
+    commitSession
+  redirect' "/account.html" 301

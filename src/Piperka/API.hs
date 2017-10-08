@@ -3,12 +3,14 @@ module Piperka.API (
   , comicInfo
   , tagList
   , userPrefs
+  , dumpArchive
   -- Moderator actions
   , readSubmit
   , dropSubmit
   , viewSubmitBanner
-    ) where
+  ) where
 
+import Piperka.API.Archive
 import Piperka.API.ComicInfo
 import Piperka.API.QuickSearch
 import Piperka.API.SubmitInfo

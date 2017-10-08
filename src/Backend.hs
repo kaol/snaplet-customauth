@@ -6,14 +6,15 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module Backend ( ) where
+module Backend ( oauth2Login ) where
 
 import Piperka.Listing.Types
 
 import Contravariant.Extras.Contrazip
 import Control.Applicative
-import Control.Monad.Trans.Except
+import qualified Data.Binary
 import Data.ByteString (ByteString)
+import Data.ByteString.Lazy (toStrict)
 import Data.Functor.Contravariant
 import Data.Maybe
 import Data.Monoid
@@ -22,15 +23,17 @@ import Data.Text (Text)
 import Data.Text.Encoding
 import Data.UUID
 import Snap
-import Snap.Snaplet.CustomAuth
+import Snap.Snaplet.CustomAuth hiding (oauth2Login)
 import Snap.Snaplet.Hasql
 import Application
 import Hasql.Query
-import Hasql.Session (Error)
+import Hasql.Session (Error(..))
 import qualified Hasql.Encoders as EN
 import qualified Hasql.Decoders as DE
-import Hasql.Session (query)
+import Hasql.Session (ResultError(..), query)
+import PostgreSQL.ErrorCodes (unique_violation)
 
+import Piperka.API.OAuth2.Types
 import Piperka.Util (monadicTuple2)
 
 encodeLoginPasswd :: EN.Params (T.Text, T.Text)
@@ -93,10 +96,8 @@ doLogin
   -> Text
   -> (DE.Row UUID -> DE.Row u)
   -> ByteString
-  -> Handler App (AuthManager u App) (Either (AuthFailure Error) u)
-doLogin u pwd decodeRow sql = withTop db $ do
-  usr <- run $ query (u, pwd) loginUserPasswd
-  return $ either (Left . AuthError) (maybe (Left AuthFailure) Right) usr
+  -> Handler App (AuthManager u App) (Either Error (Maybe u))
+doLogin u pwd decodeRow sql = withTop db $ run $ query (u, pwd) loginUserPasswd
     where
       loginUserPasswd = statement sql encode decode True
       encode = encodeLoginPasswd
@@ -120,52 +121,67 @@ doRecover
   :: Text
   -> (DE.Row UUID -> DE.Row u)
   -> ByteString
-  -> Handler App (AuthManager u App) (Either (AuthFailure Error) u)
+  -> Handler App (AuthManager u App) (Either (Either Error AuthFailure) u)
 doRecover t decodeRow sql = withTop db $ do
     let tokenUuid = fromText t
     case tokenUuid of
-     Nothing -> return $ Left AuthFailure
+     Nothing -> return $ Left $ Right AuthFailure
      Just token -> do
        usr <- run $ query token recoverSess
-       return $ either (Left . AuthError) (maybe (Left AuthFailure) Right) usr
+       return $ either (Left . Left) (maybe (Left $ Right AuthFailure) Right) usr
          where
            recoverSess = statement sql encode decode True
            encode = contramap id (EN.value EN.uuid)
            decode = DE.maybeRow $ decodeRow (pure token)
 
-doCheck
-  :: Text
-  -> Handler App (AuthManager u App) (Either Error Bool)
-doCheck u = withTop db $ do
-  run $ query u checkUserName
-    where
-      checkUserName = statement sql encode decode True
-      encode = contramap id $ EN.value EN.text
-      decode = DE.singleRow $ DE.value DE.bool
-      sql = "select not exists (select true from users where lower($1) = lower(name))"
+doPrepare
+  :: HasUserID u
+  => Maybe u
+  -> Text
+  -> Handler App (AuthManager u App) (Either Error AuthID)
+doPrepare u p = withTop db $ run $ query (p, extractUid =<< u) stmt
+  where
+    stmt = statement sql encode decode True
+    encode = contrazip2 (EN.value EN.text) (EN.nullableValue EN.int4)
+    decode = DE.singleRow $ DE.value DE.int4
+    sql = "select auth_create_password$1, $2)"
+
+doCancelPrepare
+  :: AuthID
+  -> Handler App (AuthManager u App) ()
+doCancelPrepare u = (withTop db $ run $ query u stmt) >> return ()
+  where
+    stmt = statement sql encode DE.unit True
+    encode = EN.value EN.int4
+    sql = "delete from login_method where lmid=$1"
 
 doCreate
   :: Text
-  -> Text
+  -> AuthID
   -> DE.Result b
-  -> Handler App (AuthManager u App) (Either (CreateFailure Error) b)
-doCreate u pwd decode = withTop db $ do
+  -> Handler App (AuthManager u App) (Either (Either Error CreateFailure) b)
+doCreate u loginId decode = withTop db $ do
   email <- (fmap . fmap) decodeUtf8 $ getParam "email"
-  usr <- runExceptT $ do
-    loginId <- ExceptT $ run $ query pwd createPassword
-    ExceptT $ run $ query (u, email, loginId) createUser
-  return $ either (Left . CreateError) Right usr
+  usr <- run $ query (u, email, loginId) stmt
+  return $ either (Left . maybeDuplicate) Right usr
     where
-      createPassword = statement sql1 (EN.value EN.text) (DE.singleRow $ DE.value DE.int4) True
-      createUser = statement sql2 encode decode True
+      stmt = statement sql encode decode True
       encode = contrazip3 (EN.value EN.text) (EN.nullableValue EN.text) (EN.value EN.int4)
-      sql1 = "select lmid from auth_create_password($1)"
-      sql2 = "select uid, p_session, csrf_ham from auth_create($1, $2, $3)"
+      sql = "select uid, p_session, csrf_ham from auth_create($1, $2, $3)"
+      maybeDuplicate e =
+        if isDuplicateSqlError e then Right DuplicateName else Left e
+
+isDuplicateSqlError
+  :: Error
+  -> Bool
+isDuplicateSqlError (ResultError (ServerError c _ _ _)) = c == unique_violation
+isDuplicateSqlError _ = False
 
 -- For use with partial HTML render and AJAX calls
-instance IAuthBackend UserPrefs Error App where
-  check = doCheck
-  create u pwd = doCreate u pwd $ DE.singleRow $ prefsDefaultRow u
+instance IAuthBackend UserPrefs AuthID Error App where
+  preparePasswordCreate = doPrepare
+  cancelPrepare = doCancelPrepare
+  create u i = doCreate u i $ DE.singleRow $ prefsDefaultRow u
   login u pwd = doLogin u pwd prefsRow
                 "select uid, name, p_session, csrf_ham, \
                 \uid in (select uid from moderator) as moderator, \
@@ -177,11 +193,14 @@ instance IAuthBackend UserPrefs Error App where
               \uid in (select uid from moderator) as moderator, \
               \display_rows, display_columns, new_windows \
               \from recover_session($1) join users using (uid)"
+  getUserId = return . toStrict . Data.Binary.encode . uid . fromJust . user
+  isDuplicateError = return . isDuplicateSqlError
 
 -- Side effect: updates last read stats on login/recover
-instance IAuthBackend UserPrefsWithStats Error App where
-  check = doCheck
-  create u pwd = doCreate u pwd $ DE.singleRow $ prefsStatsDefaultRow u
+instance IAuthBackend UserPrefsWithStats AuthID Error App where
+  preparePasswordCreate = doPrepare
+  cancelPrepare = doCancelPrepare
+  create u i = doCreate u i $ DE.singleRow $ prefsStatsDefaultRow u
   login u pwd = doLogin u pwd prefsStatsRow
                 "select (select (new_comics, total_new, new_in) from \
                 \get_and_update_stats(uid, true)), \
@@ -205,6 +224,23 @@ instance IAuthBackend UserPrefsWithStats Error App where
               \where cid in (select cid from comics)) as mod_queue, \
               \extract(days from now() - last_moderate) as mod_days \
               \from moderator) as m using (uid)"
+  getUserId = return . toStrict . Data.Binary.encode . uid . fromJust . user . prefs
+  isDuplicateError = return . isDuplicateSqlError
+
+oauth2Login
+  :: Provider
+  -> Text
+  -> Handler App (AuthManager UserPrefs App) (Either Error (Maybe UserPrefs))
+oauth2Login provider token = do
+  withTop db $ run $ query (fromIntegral $ providerOpid provider, token) stmt
+  where
+    stmt = statement sql encode decode True
+    encode = contrazip2 (EN.value EN.int4) (EN.value EN.text)
+    decode = DE.maybeRow $ prefsRow (DE.value DE.uuid)
+    sql = "select uid, name, p_session, csrf_ham, \
+          \uid in (select uid from moderator) as moderator, \
+          \display_rows, display_columns, new_windows \
+          \from auth_oauth2($1, $2) join users using (uid)"
 
 instance UserData MyData where
   extractUser MyData{..} = AuthUser
@@ -226,3 +262,12 @@ instance UserData UserPrefsWithStats where
     , session = toText $ usession $ fromJust $ user prefs
     , csrfToken = toText $ ucsrfToken $ fromJust $ user prefs
     }
+
+class HasUserID u where
+  extractUid :: u -> Maybe UserID
+
+instance HasUserID UserPrefs where
+  extractUid u = uid <$> user u
+
+instance HasUserID UserPrefsWithStats where
+  extractUid u = uid <$> (user $ prefs u)

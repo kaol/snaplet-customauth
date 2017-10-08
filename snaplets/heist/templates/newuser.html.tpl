@@ -13,8 +13,7 @@
 	<h:on err="PasswordMissing">Password missing</h:on>
 	<h:on err="AvailError">Error checking account name
 	  availability. <h:sqlErr/></h:on>
-	<h:on err="CreateError">Error creating account.
-	  account. <h:sqlErr/></h:on>
+	<h:otherwise>Error creating account. <h:sqlErr/></h:otherwise>
     </h:onCreateError>
     <form method="post" action="newuser.html">
       User name: <input type="text" name="_new_login" h:value="_new_login" maxlength="40"/>

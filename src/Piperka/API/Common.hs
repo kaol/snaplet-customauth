@@ -7,10 +7,12 @@
 module Piperka.API.Common
   (
     runQueries
+  , runMaybeUserQueries
   , runUserQueries
   , runModQueries
   , simpleFail
   , validateCsrf
+  , requiredParam
   , UserQueryHandler
   ) where
 
@@ -22,19 +24,19 @@ import Data.ByteString (ByteString)
 import Data.Monoid
 import Data.Text (Text)
 import qualified Data.Text as T
+import Data.Text.Encoding (decodeUtf8)
 import Data.UUID
 import GHC.Generics
 import Hasql.Session (Error)
 import Network.IP.Addr
 import Snap
 import Snap.Snaplet.CustomAuth
-import Snap.Snaplet.Hasql
 
 import Application
 import Backend ()
 import Piperka.Util (getParamText)
 
-type UserQueryHandler a = ExceptT Error (Handler App Hasql) a
+type UserQueryHandler a = ExceptT Error (Handler App App) a
 
 data Fail = Errmsg { errmsg :: Text } deriving (Generic)
 instance ToJSON Fail where
@@ -51,27 +53,36 @@ failWithMsg msg = do
   finishWith =<< getResponse
 
 runQueries
-  :: ExceptT Error (Handler App Hasql) a
+  :: ExceptT Error (Handler App App) a
   -> AppHandler a
 runQueries actions = do
   modifyResponse (setHeader "Content-Type" "application/json")
-  either failWithMsg return =<< withTop db (runExceptT actions)
+  either failWithMsg return =<< (runExceptT actions)
+
+runMaybeUserQueries
+  :: (Maybe UserPrefs -> ExceptT Error (Handler App App) a)
+  -> AppHandler a
+runMaybeUserQueries actions = do
+  modifyResponse (setHeader "Content-Type" "application/json")
+  either failWithMsg return =<<
+    (do
+        withTop apiAuth recoverSession
+        runExceptT . actions =<< withTop apiAuth currentUser)
 
 runUserQueries
-  :: (UserPrefs -> ExceptT Error (Handler App Hasql) a)
+  :: (UserPrefs -> ExceptT Error (Handler App App) a)
   -> AppHandler a
 runUserQueries actions = do
   modifyResponse (setHeader "Content-Type" "application/json")
   either failWithMsg return =<<
-    (withTop db $
-      do
+    (do
         withTop apiAuth recoverSession
         maybe (simpleFail 403 "User authentication failed") (runExceptT . actions) =<<
           (withTop apiAuth currentUser)
     )
 
 runModQueries
-  :: (UserPrefs -> ExceptT Error (Handler App Hasql) a)
+  :: (UserPrefs -> ExceptT Error (Handler App App) a)
   -> AppHandler a
 runModQueries actions = runUserQueries $ \u ->
   if (moderator <$> user u) == Just True
@@ -95,8 +106,17 @@ simpleFail
   -> Handler b v a
 simpleFail status msg = do
   modifyResponse $ setResponseStatus status msg
+  -- Assume msg is always valid UTF-8
+  writeLBS $ encode $ Errmsg $ decodeUtf8 msg
   finishWith =<< getResponse
   undefined
 
 instance ToJSON (NetAddr IP) where
   toJSON = String . T.pack . show
+
+requiredParam
+  :: ByteString
+  -> (ByteString -> AppHandler (Maybe a))
+  -> AppHandler a
+requiredParam n a = a n >>=
+  maybe (simpleFail 404 ("Required parameter " <> n <> " missing")) return

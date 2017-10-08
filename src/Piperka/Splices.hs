@@ -51,7 +51,7 @@ loginFailed = const $ do
 
 accountCreationFailed
   :: C.Splice AppHandler
-  -> RuntimeAppHandler (CreateFailure Hasql.Session.Error)
+  -> RuntimeAppHandler (Either Hasql.Session.Error CreateFailure)
 accountCreationFailed content n = do
   withSplices content (accountCreateFailSplices <> nullStatsSplices) n
 
@@ -80,7 +80,7 @@ renderContent
 renderContent ini ns = C.withSplices (C.runNodeList ns) $ contentSplices' ini
 
 prefsMayCreate
-  :: ExceptT (CreateFailure Hasql.Session.Error) (RuntimeSplice AppHandler)
+  :: ExceptT (Either Hasql.Session.Error CreateFailure) (RuntimeSplice AppHandler)
      (Maybe UserPrefsWithStats)
 prefsMayCreate = do
   p <- lift $ lift $ withTop auth $ combinedLoginRecover loginFailed

@@ -53,20 +53,64 @@
 	<h:csrfForm method="post" action="account.html">
 	  <input type="hidden" name="action" value="settings_priv"/>
 	  <p>
-	    The following settings are protected and need a password
-	    verification to change.
+	    The following settings are protected and need either a
+	    password or OAuth2 verification to change.
 	  </p>
+	  <p>
+	    Authenticate changes with
+	    <select name="authenticate_with" id="authenticate_with">
+	      <option value="Password" h:hasPassword="1">Password</option>
+	      <h:oauth2Providers>
+		<option value="${h:label}" h:selected="1"/>
+	      </h:oauth2Providers>
+	    </select>
 	  <p>
 	    Password: <input type="password" name="_password"/>
 	  </p>
 	  <h3>Manage password</h3>
-	  Leave empty to not change it.
 	  <p>
-	    New password: <input type="password" name="new_passwd"/>
+	    <label for="only_oauth2">Passwordless mode, use only OAuth2 for login </label>
+	    <input type="checkbox" name="only_oauth2" h:checkedOnlyOAuth2="1" id="only_oauth2"/>
 	  </p>
 	  <p>
-	    Retype new password: <input type="password" name="new_passwd_retype"/>
+	    New password: <input type="password" name="new_passwd" h:disabledOnlyOauth2="1"/>
 	  </p>
+	  <p>
+	    Retype new password: <input type="password" name="new_passwd_retype" h:disabledOnlyOauth2="1"/>
+	  </p>
+	  <h3>OAuth2 logins</h3>
+	  OAuth2 is used solely for fetching a unique user ID from the provider.
+	  <table>
+	    <tr>
+	      <th>Provider</th>
+	      <th>ID</th>
+	      <h:removableProviders>
+		<th>Remove</th>
+	      </h:removableProviders>
+	      <h:attachableProviders>
+		<th>Attach (opens in a new window/tab)</th>
+	      </h:attachableProviders>
+	    </tr>
+	    <h:oauth2Providers>
+	      <tr>
+		<td><h:label/></td>
+		<td><h:identification/></td>
+		<h:removableProviders>
+		  <td>
+		    <h:hasIdentification>
+		      <input type="checkbox" name="remove_oauth2" value="${h:name}"/>
+		    </h:hasIdentification>
+		  </td>
+		</h:removableProviders>
+		<h:attachableProviders>
+		  <td>
+		    <h:hasIdentification check="False">
+		      <a href="/s/account?settings_type=attach_oauth2&provider=${h:name}" target="_blank" class="oauth2_add">Attach</a>
+		    </h:hasIdentification>
+		  </td>
+		</h:attachableProviders>
+	      </tr>
+	    </h:oauth2Providers>
 	  <h3>Change email address</h3>
 	  <p>
 	    New email: <input type="email" name="new_email" h:value="email"/>

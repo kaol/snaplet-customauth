@@ -12,6 +12,7 @@ module Application
   , AppHandler
   , RuntimeAppHandler
   , UserID
+  , AuthID
   , AppInit(..)
   , auth
   , apiAuth
@@ -20,6 +21,7 @@ module Application
   , messages
   , taglookup
   , extlookup
+  , httpManager
   , defaultUserPrefsWithStats
   , defaultUserPrefs
   ) where
@@ -31,7 +33,7 @@ import Piperka.Listing.Types (ViewColumns)
 import Control.Lens
 import Snap.Snaplet
 import Snap.Snaplet.Heist
-import Snap.Snaplet.CustomAuth
+import Snap.Snaplet.CustomAuth hiding (httpManager)
 import Snap.Snaplet.Hasql
 import Snap.Snaplet.Session
 import Data.Text as T
@@ -40,12 +42,14 @@ import Data.UUID
 import Control.Monad.State
 import Heist (RuntimeSplice)
 import Heist.Compiled (Splice)
+import Network.HTTP.Client (Manager)
 
 import Piperka.ComicInfo.Types
 import Piperka.Listing.Types (ViewColumns(..))
 ------------------------------------------------------------------------------
 
 type UserID = Int32
+type AuthID = Int32
 
 data MyData = MyData
   { uid :: UserID
@@ -77,6 +81,7 @@ data App = App
   , _messages :: Snaplet SessionManager
   , _extlookup :: Int -> Text -> Maybe ExternalEntry
   , _taglookup :: [Int] -> [ComicTag]
+  , _httpManager :: Manager
   }
 
 data AppInit = AppInit

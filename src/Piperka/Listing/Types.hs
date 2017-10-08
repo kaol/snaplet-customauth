@@ -1,11 +1,14 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Piperka.Listing.Types where
 
 import Network.HTTP.Types.URI (Query)
+import Data.Binary
 import Data.Int
 import Data.Text (Text)
 import Data.Vector
+import GHC.Generics (Generic)
 import Prelude hiding (Ordering)
 import Hasql.Session (Error)
 import Data.Text.Encoding (encodeUtf8)
@@ -34,7 +37,9 @@ data UpdateListingItem = UpdateListingItem
   } deriving (Show, Eq)
 
 data ViewColumns = OneColumn | TwoColumn | ThreeColumn
-                 deriving (Show, Eq, Ord, Read)
+                 deriving (Show, Eq, Ord, Read, Generic)
+
+instance Binary ViewColumns
 
 data ListingError = Missing | SqlError Error
                   deriving (Show, Eq)

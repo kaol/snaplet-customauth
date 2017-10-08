@@ -31,6 +31,10 @@ eitherDeferMap f pff pfs n = do
       (\x -> putPromise pf x >> codeGen actionFailure)
       (\x -> putPromise ps x >> codeGen actionSuccess) =<< f =<< n
 
+-- Takes a boolean function and a runtime splice.  Uses the "check"
+-- attribute of the current node, accepted values True, False or none
+-- (defaults to True).  Does runChildren if the boolean function gives
+-- the same value as the check attribute.
 checkedSplice
   :: forall (n :: * -> *) a. Monad n
   => (a -> Bool)

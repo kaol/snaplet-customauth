@@ -17,6 +17,7 @@ import           Data.ByteString (ByteString)
 --import           Data.Monoid
 --import qualified Data.Text as T
 --import           Snap.Core
+import Network.HTTP.Client
 import           Snap.Snaplet
 import Snap.Snaplet.Heist hiding (heistServe)
 import           Snap.Snaplet.Heist.Compiled
@@ -40,12 +41,12 @@ import Piperka.API
 -- | The application's routes.
 routes :: [(ByteString, Handler App App ())]
 routes =
-  map (\(a,b) -> (a, bracketDbOpen b))
-  [
-    ("/s/cinfo/:cid", comicInfo)
+  mapped._2 %~ bracketDbOpen $
+  [ ("/s/cinfo/:cid", comicInfo)
   , ("/s/qsearch", quickSearch)
   , ("/s/tagslist/:tagid", tagList)
   , ("/s/uprefs", userPrefs)
+  , ("/s/archive/:cid", dumpArchive)
   -- Moderator interface
   , ("/s/sinfo/:sid", readSubmit)
   , ("/s/sinfo2/:sid", readSubmit)
@@ -65,6 +66,7 @@ data ParLabels a b c = L1 a | L2 b | L3 c
 
 app :: SnapletInit App App
 app = makeSnaplet "piperka" "Piperka application." Nothing $ do
+  mgr <- liftIO $ newManager defaultManagerSettings
   [~(L1 elookup), ~(L2 tlookup), ~(L3 tfp), ~(L3 efp)] <- liftIO $
     (map $ either error id) <$>
     withPool 4 (flip parallel
@@ -74,10 +76,16 @@ app = makeSnaplet "piperka" "Piperka application." Nothing $ do
                 , (fmap L3) <$> generateExternalFormPart
                 ])
   let initData = AppInit efp tfp
-  a <- nestSnaplet "" auth $ authInit "_session" "_login" "_password"
-  a' <- nestSnaplet "" apiAuth $ authInit "_session" "_login" "_password"
+  let authSettings =  defAuthSettings
+       & authSessionCookieName .~ "_session"
+       & authUserField .~ "_login"
+       & authPasswordField .~ "_password"
   m <- nestSnaplet "messages" messages $
        initCookieSessionManager "site_key.txt" "messages" Nothing (Just 3600)
+  a <- nestSnaplet "auth" auth $ authInit Nothing $ authSettings
+       & authName .~ "auth"
+  a' <- nestSnaplet "apiAuth" apiAuth $ authInit Nothing $ authSettings
+        & authName .~ "apiAuth"
   h <- nestSnaplet "" heist $ heistInit' "templates" $
        emptyHeistConfig
        & hcLoadTimeSplices .~ defaultLoadTimeSplices
@@ -87,4 +95,4 @@ app = makeSnaplet "piperka" "Piperka application." Nothing $ do
   d <- nestSnaplet "" db $ hasqlInit "postgresql://kaol@/piperka"
   addRoutes routes
   wrapSite (<|> bracketDbOpen heistServe)
-  return $ App h a a' d m elookup tlookup
+  return $ App h a a' d m elookup tlookup mgr

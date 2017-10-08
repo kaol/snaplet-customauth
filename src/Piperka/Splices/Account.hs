@@ -9,6 +9,7 @@ module Piperka.Splices.Account
 
 import Control.Monad.Trans
 import Data.Maybe
+import qualified Data.Text as T
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Map.Syntax
@@ -21,6 +22,7 @@ import Text.XmlHtml
 import Application
 import Piperka.Error.Splices
 import Snap.Snaplet.CustomAuth.Types
+import Heist.Compiled.Extra
 
 nullCreateSplice
   :: Splice AppHandler
@@ -43,38 +45,23 @@ paramsFromQuery paramName = (lift $ getParam (encodeUtf8 paramName)) >>=
 
 
 accountCreateFailSplices
-  :: Splices (RuntimeAppHandler (CreateFailure Hasql.Session.Error))
+  :: Splices (RuntimeAppHandler (Either Hasql.Session.Error CreateFailure))
 accountCreateFailSplices =
-  "onCreateError" ## withSplices runChildren ("on" ## onErrSplice)
-
-getSqlError
-  :: forall a. (Eq a, Show a)
-  => CreateFailure a
-  -> Maybe a
-getSqlError (AvailError e) = Just e
-getSqlError (CreateError e) = Just e
-getSqlError _ = Nothing
-
-testErrorType
-  :: forall a. (Eq a, Show a)
-  => CreateFailure a
-  -> Text
-  -> Bool
-testErrorType MissingName = (== "MissingName")
-testErrorType NameUsed = (== "NameUsed")
-testErrorType PasswordMismatch = (== "PasswordMismatch")
-testErrorType NoPassword = (== "PasswordMissing")
-testErrorType (AvailError _) = (== "AvailError")
-testErrorType (CreateError _) = (== "CreateError")
+  "onCreateError" ## withSplices runChildren (do
+                                                 "on" ## onErrSplice
+                                                 "otherwise" ## otherError)
 
 onErrSplice
-  :: RuntimeAppHandler (CreateFailure Hasql.Session.Error)
+  :: RuntimeAppHandler (Either Hasql.Session.Error CreateFailure)
 onErrSplice n = do
-  nodeErr <- fromJust . getAttribute "err" <$> getParamNode
-  plain <- withLocalSplices ("sqlErr" ## return mempty) mempty runChildren
-  withSqlErr <- mayDeferMap (return . getSqlError)
-                (withSplices (callTemplate "_sqlErr") sqlErrorSplices) n
+  nodeErr <- read . T.unpack . fromJust . getAttribute "err" <$> getParamNode
+  cs <- withLocalSplices ("sqlErr" ## return mempty) mempty runChildren
   flip bindLater n $ \err -> do
-    if testErrorType err nodeErr
-      then codeGen $ if isJust $ getSqlError err then withSqlErr else plain
-      else return mempty
+    case err of
+      Right e -> if e == nodeErr then codeGen cs else return mempty
+      Left _ -> return mempty
+
+otherError
+  :: RuntimeAppHandler (Either Hasql.Session.Error CreateFailure)
+otherError n = eitherDeferMap return
+  (withSplices (callTemplate "_sqlErr") sqlErrorSplices) (const $ return mempty) n

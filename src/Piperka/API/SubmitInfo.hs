@@ -90,8 +90,7 @@ readSubmit = do
 dropSubmit
   :: AppHandler ()
 dropSubmit = do
-  s <- maybe (simpleFail 404 "Required parameter sid missing") return =<<
-       fmap snd <$> getParamInt "sid"
+  s <- requiredParam "sid" $ \n -> fmap snd <$> getParamInt n
   runModQueries $ const $ do
     lift $ validateCsrf
     ExceptT $ run $ query (fromIntegral s) $
@@ -105,8 +104,7 @@ dropSubmit = do
 viewSubmitBanner
   :: AppHandler ()
 viewSubmitBanner = do
-  s <- maybe (simpleFail 404 "Required parameter sid missing") return =<<
-       fmap snd <$> getParamInt "sid"
+  s <- requiredParam "sid" $ \n -> fmap snd <$> getParamInt n
   b <- runModQueries $ const $ do
     b <- ExceptT $ run $ query (fromIntegral s) $
          statement sql (EN.value EN.int4)

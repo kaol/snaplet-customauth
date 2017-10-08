@@ -1,13 +1,19 @@
+{-# LANGUAGE DeriveGeneric #-}
+
 module Piperka.Profile.Types where
 
+import Data.Binary
 import Data.Int
 import Data.Text
+import GHC.Generics (Generic)
 
 data Profile = Common CommonProfile | Own OwnProfile | Other OtherProfile
              deriving (Show, Eq)
 
 data Privacy = Public | Friends | Private
-             deriving (Show, Eq, Ord)
+             deriving (Show, Eq, Ord, Generic)
+
+instance Binary Privacy
 
 data CommonProfile = CommonProfile
   { uid :: Int32

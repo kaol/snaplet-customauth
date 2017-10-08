@@ -15,10 +15,12 @@ module Piperka.Util
   , getParamText
   , getParamInt
   , getCid
+  , firstSuccess
   ) where
 
 import Control.Error.Util (hush, hoistMaybe)
 import Control.Monad
+import Control.Monad.Trans
 import Control.Monad.Trans.Maybe
 import Network.HTTP.Types.URI (Query, encodePath, urlEncode)
 import Blaze.ByteString.Builder (Builder, toByteString)
@@ -124,3 +126,12 @@ getParamInt name = runMaybeT $ do
 getCid
   :: Handler b v (Maybe (ByteString, Int))
 getCid = getParamInt "cid"
+
+firstSuccess
+  :: Monad m
+  => [MaybeT m a]
+  -> MaybeT m a
+firstSuccess [] = MaybeT $ return Nothing
+firstSuccess (x:xs) = (lift $ runMaybeT x) >>= \r -> case r of
+  Nothing -> firstSuccess xs
+  Just r' -> return r'

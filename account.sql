@@ -8,22 +8,18 @@ DROP FUNCTION auth_login(text,text);
 DROP FUNCTION do_login(integer);
 DROP FUNCTION recover_session(uuid);
 
-CREATE OR REPLACE FUNCTION auth_create_password(password text, OUT lmid int) AS $$
-BEGIN
-INSERT INTO login_method_passwd (hash) VALUES (crypt(password, gen_salt('bf', 13))) RETURNING login_method_passwd.lmid INTO lmid;
-END;
-$$ LANGUAGE plpgsql;
+CREATE OR REPLACE FUNCTION auth_create_password(password text, uid int) RETURNS int AS $$
+  INSERT INTO login_method_passwd (uid, hash)
+    VALUES (auth_create_password.uid, crypt(password, gen_salt('bf', 13)))
+    ON CONFLICT (uid) DO UPDATE SET hash=EXCLUDED.hash, stamp=now()
+    RETURNING login_method_passwd.lmid;
+$$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION auth_create(name text, email text, lmid int, OUT uid integer, OUT p_session uuid, OUT csrf_ham uuid) AS $$
 BEGIN
-  IF NOT EXISTS(SELECT 1 FROM users WHERE lower(users.name)=lower(auth_create.name)) THEN
-    INSERT INTO users (name, email) VALUES (auth_create.name, auth_create.email)
-      RETURNING users.uid INTO uid;
-    INSERT INTO user_login (uid, lmid) VALUES (auth_create.uid, auth_create.lmid);
-    SELECT do_login.p_session, do_login.csrf_ham FROM do_login(uid) INTO p_session, csrf_ham;
-  ELSE
-    RAISE 'Duplicate user name' USING ERRCODE = 'unique_violation';
-  END IF;
+  INSERT INTO users (name, email, initial_lmid) VALUES (auth_create.name, auth_create.email, auth_create.lmid)
+    RETURNING users.uid INTO uid;
+  SELECT do_login.p_session, do_login.csrf_ham FROM do_login(uid) INTO p_session, csrf_ham;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -33,11 +29,10 @@ DECLARE
   pw_matches boolean;
   pw_convert boolean;
   old_hash character(32);
-  lmid int;
 BEGIN
   SELECT users.uid, crypt(auth_login.password, hash)=hash, passwd
     INTO auth_login.uid, pw_matches, old_hash
-    FROM users LEFT JOIN (user_login JOIN login_method_passwd USING (lmid)) USING (uid)
+    FROM users LEFT JOIN login_method_passwd USING (uid)
     WHERE LOWER(auth_login.name)=LOWER(users.name);
   IF pw_matches IS NULL AND old_hash IS NOT NULL THEN
     -- Check for old md5 hash
@@ -51,8 +46,7 @@ BEGIN
   END IF;
   IF pw_matches THEN
     IF pw_convert THEN
-      SELECT auth_create_password.lmid INTO lmid FROM auth_create_password(auth_login.password);
-      INSERT INTO user_login (uid, lmid) VALUES (auth_login.uid, lmid);
+      SELECT NULL FROM auth_create_password(auth_login.password, auth_login.uid);
       UPDATE users set passwd=null WHERE users.uid=auth_login.uid;
     END IF;
     RETURN QUERY SELECT auth_login.uid, do_login.p_session, do_login.csrf_ham FROM do_login(auth_login.uid);
@@ -69,6 +63,18 @@ BEGIN
     UPDATE users SET last_active = NOW() WHERE users.uid=recover_session.uid;
     SELECT ses FROM p_session WHERE token_for=session INTO csrf_ham;
     RETURN QUERY SELECT uid, csrf_ham;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION auth_oauth2(opid integer, token text) RETURNS TABLE (uid integer, p_session uuid, csrf_ham uuid) AS $$
+BEGIN
+  SELECT users.uid INTO auth_oauth2.uid
+    FROM users JOIN login_method_oauth2 USING (uid)
+    WHERE login_method_oauth2.identification = auth_oauth2.token
+    AND login_method_oauth2.opid = auth_oauth2.opid;
+  IF auth_oauth2.uid IS NOT NULL THEN
+    RETURN QUERY SELECT auth_oauth2.uid, do_login.p_session, do_login.csrf_ham FROM do_login(auth_oauth2.uid);
   END IF;
 END;
 $$ LANGUAGE plpgsql;
@@ -96,36 +102,46 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TABLE user_login (
-  uid int NOT NULL REFERENCES users (uid) ON DELETE CASCADE,
-  lmid int NOT NULL,
-  UNIQUE (uid, lmid)
-);
-
 CREATE OR REPLACE FUNCTION must_have_login2() RETURNS trigger AS $$
+DECLARE
+  n text;
 BEGIN
-  IF NOT OLD.uid IN (SELECT uid FROM user_login JOIN login_method ON (lmid NOT IN (SELECT lmid FROM login_method_temp_hash))) THEN
-    RAISE EXCEPTION 'Account % with no login credentials', OLD.name USING ERRCODE = 'PI001';
+  IF OLD.uid IS NULL THEN
+    RETURN NEW;
+  END IF;
+  IF NOT EXISTS (SELECT * FROM login_method AS lm WHERE OLD.uid = lm.uid AND OLD.lmid <> ul.lmid) THEN
+    n := (SELECT name FROM users WHERE uid=OLD.uid);
+    RAISE EXCEPTION 'Account % with no login credentials', n USING ERRCODE = 'PI001';
     RETURN NULL;
   END IF;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER must_have_login2 AFTER UPDATE OR DELETE ON user_login FOR EACH ROW EXECUTE PROCEDURE must_have_login2();
+CREATE TRIGGER must_have_login2 AFTER DELETE ON login_method_passwd FOR EACH ROW EXECUTE PROCEDURE must_have_login2();
+CREATE TRIGGER must_have_login2 AFTER DELETE ON login_method_oauth2 FOR EACH ROW EXECUTE PROCEDURE must_have_login2();
 
 CREATE SEQUENCE lmid_seq;
 
 CREATE TABLE login_method (
   lmid int NOT NULL PRIMARY KEY DEFAULT nextval('lmid_seq'),
+  uid int,
   stamp timestamp DEFAULT now()
 );
 
 CREATE TABLE login_method_passwd (
   hash char(60) NOT NULL,
-) INHERITS login_method;
+  UNIQUE (uid)
+) INHERITS (login_method);
 
 ALTER TABLE pwdgen_hash ADD COLUMN stamp timestamp DEFAULT now();
+
+CREATE TABLE login_method_oauth2 (
+  opid int NOT NULL,
+  identification text NOT NULL,
+  UNIQUE (uid, opid),
+  UNIQUE (opid, identification)
+) INHERITS (login_method);
 
 CREATE OR REPLACE FUNCTION create_recovery_key(name text, email text, hash character(32)) RETURNS boolean AS $$
 DECLARE
@@ -151,10 +167,20 @@ BEGIN
   if _uid IS NULL THEN
     RETURN FALSE;
   END IF;
-  DELETE FROM login_method_passwd WHERE lmid IN (SELECT user_login.lmid FROM user_login WHERE uid=_uid);
-  INSERT INTO user_login (uid, lmid) VALUES (_uid, (SELECT lmid FROM auth_create_password($3)));
-  DELETE FROM user_login WHERE uid=_uid AND lmid NOT IN (SELECT lmid FROM login_method);
+  DELETE FROM login_method_passwd WHERE login_method_passwd.uid=_uid);
+  SELECT NULL FROM auth_create_password($3, _uid);
   DELETE FROM pwdgen_hash WHERE uid=_uid;
   RETURN TRUE;
 END;
 $$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION initial_user_login() RETURNS trigger AS $$
+BEGIN
+  IF NEW.initial_lmid IS NULL THEN
+    RAISE 'initial_lmid undefined for new user';
+  END IF;
+  UPDATE login_method SET uid=NEW.uid WHERE lmid=NEW.initial_lmid;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER initial_user_login AFTER INSERT ON users FOR EACH ROW EXECUTE PROCEDURE initial_user_login();

@@ -15,6 +15,7 @@ import Snap.Snaplet.CustomAuth.Types
 import Snap.Snaplet.CustomAuth.AuthManager
 import Data.Map.Syntax
 
+import Snap.Snaplet.CustomAuth.User (currentUser)
 
 addAuthSplices
   :: UserData u
