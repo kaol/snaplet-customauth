@@ -47,6 +47,7 @@ routes =
   , ("/s/tagslist/:tagid", tagList)
   , ("/s/uprefs", userPrefs)
   , ("/s/archive/:cid", dumpArchive)
+  , ("/s/profile", profileSubmission)
   -- Moderator interface
   , ("/s/sinfo/:sid", readSubmit)
   , ("/s/sinfo2/:sid", readSubmit)

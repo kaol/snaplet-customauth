@@ -90,7 +90,7 @@ runModQueries actions = runUserQueries $ \u ->
   else lift $ simpleFail 403 "Moderator only"
 
 validateCsrf
-  :: Handler App v ()
+  :: Handler App v UserPrefs
 validateCsrf = do
   u <- maybe (simpleFail 403 "User authentication failed") return =<<
        withTop apiAuth currentUser
@@ -99,6 +99,7 @@ validateCsrf = do
               then return ()
               else simpleFail 403 "CSRF validation failed") =<<
     ((Data.UUID.fromText =<<) <$> getParamText "csrf_ham")
+  return u
 
 simpleFail
   :: Int
