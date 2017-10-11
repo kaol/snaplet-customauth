@@ -102,8 +102,6 @@ tryUpdate p a@(AccountUpdatePriv _ _ _ _ _ _ _ _) = runExceptT $ do
   withExceptT AccountSqlError $ ExceptT $ tryUpdatePriv u a
   return p
 
-tryUpdate p a@(AttachProvider _) = undefined
-
 accountUpdates
   :: UserPrefs
   -> AppHandler (Either AccountUpdateError UserPrefs)
@@ -125,7 +123,7 @@ privUpdateConfirmed
   -> Text
   -> ByteString
   -> AppHandler ()
-privUpdateConfirmed provider token d = do
+privUpdateConfirmed _ _ d = do
   withTop messages $ do
     setInSession "p_priv" (decodeLatin1 $ Data.ByteString.Base64.encode d)
     commitSession

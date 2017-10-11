@@ -65,7 +65,7 @@ data AccountUpdate = AccountUpdateUnpriv
   , writeup' :: Maybe Text
   , oauth2Removes :: [Provider]
   , passwordless :: Bool
-  } | AttachProvider Provider
+  }
   deriving (Show, Eq, Generic)
 
 instance Binary AccountUpdate
