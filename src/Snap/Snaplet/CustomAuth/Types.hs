@@ -48,7 +48,6 @@ data Provider =
   Google | Reddit
   deriving (Show, Eq, Ord, Generic)
 
---data Generic i => SavedAction = SavedAction i {
 data SavedAction = SavedAction {
     actionProvider :: Provider
   , actionStamp :: UTCTime

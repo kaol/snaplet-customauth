@@ -31,7 +31,7 @@ class (UserData u, Binary i, Show e, Eq e) => IAuthBackend u i e b | u -> b, b -
   preparePasswordCreate :: Maybe u -> Text -> Handler b (AuthManager u b) (Either e i)
   cancelPrepare :: i -> Handler b (AuthManager u b) ()
   create :: Text -> i -> Handler b (AuthManager u b) (Either (Either e CreateFailure) u)
-  attachLoginMethod :: i -> Handler b (AuthManager u b) (Either e u)
+  attachLoginMethod :: u -> i -> Handler b (AuthManager u b) (Either e ())
   login :: Text -> Text -> Handler b (AuthManager u b) (Either e (Maybe u))
   logout :: Text -> Handler b (AuthManager u b) ()
   recover :: Text -> Handler b (AuthManager u b) (Either (Either e AuthFailure) u)

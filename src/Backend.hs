@@ -171,6 +171,17 @@ doCreate u loginId decode = withTop db $ do
       maybeDuplicate e =
         if isDuplicateSqlError e then Right DuplicateName else Left e
 
+attach
+  :: HasUserID u
+  => u
+  -> AuthID
+  -> Handler App (AuthManager u App) (Either Error ())
+attach u i = withTop db $ run $ query (fromJust $ extractUid u, i) stmt
+  where
+    stmt = statement sql encode DE.unit True
+    encode = contrazip2 (EN.value EN.int4) (EN.value EN.int4)
+    sql = "insert into login_method (uid, lmid) values ($1, $2)"
+
 isDuplicateSqlError
   :: Error
   -> Bool
@@ -182,6 +193,7 @@ instance IAuthBackend UserPrefs AuthID Error App where
   preparePasswordCreate = doPrepare
   cancelPrepare = doCancelPrepare
   create u i = doCreate u i $ DE.singleRow $ prefsDefaultRow u
+  attachLoginMethod = attach
   login u pwd = doLogin u pwd prefsRow
                 "select uid, name, p_session, csrf_ham, \
                 \uid in (select uid from moderator) as moderator, \
@@ -201,6 +213,7 @@ instance IAuthBackend UserPrefsWithStats AuthID Error App where
   preparePasswordCreate = doPrepare
   cancelPrepare = doCancelPrepare
   create u i = doCreate u i $ DE.singleRow $ prefsStatsDefaultRow u
+  attachLoginMethod = attach
   login u pwd = doLogin u pwd prefsStatsRow
                 "select (select (new_comics, total_new, new_in) from \
                 \get_and_update_stats(uid, true)), \

@@ -263,7 +263,8 @@ doResume
   -> Handler b (AuthManager u b) ()
 doResume s provider token d = do
   recoverSession
-  userId <- runMaybeT $ lift . getUserId =<< MaybeT currentUser
+  user <- currentUser
+  userId <- runMaybeT $ lift . getUserId =<< (MaybeT $ return user)
   res <- runExceptT $ do
     d' <- ExceptT . return $ maybe (Left $ Right ActionDecodeError) Right $
       ((fmap $ \(_, _, x) -> x) . hush . Data.Binary.decodeOrFail . fromStrict) =<<
@@ -281,13 +282,13 @@ doResume s provider token d = do
     when expired $ throwE (Right ActionTimeout)
     return $ savedAction d'
   let
-    attach = maybe attach' (const $ (oauth2Failure s) (Just provider)
-                            (Right (OAuth2Failure AttachNotLoggedIn))) userId
-    attach' = do
+    attach = maybe ((oauth2Failure s) (Just provider)
+                    (Right (OAuth2Failure AttachNotLoggedIn))) attach' user
+    attach' u = do
       usr <- prepareOAuth2Create' s provider token
       res' <- runExceptT $ do
         i' <- hoistEither usr
-        ExceptT $ return . either (Left . Left) Right =<< attachLoginMethod i'
+        ExceptT $ return . either (Left . Left) Right =<< attachLoginMethod u i'
       case (usr, res') of
         (Right i, Left _) -> cancelPrepare i
         _ -> return ()
