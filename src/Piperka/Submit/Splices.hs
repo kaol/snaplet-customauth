@@ -36,8 +36,8 @@ data SubmitType = Edit | Submit | Moderate
 
 renderSubmit
   :: AppInit
-  -> RuntimeAppHandler UserPrefs
-renderSubmit ini n = do
+  -> Splice AppHandler
+renderSubmit ini = do
   mode :: SubmitType <- read . T.unpack . fromJust . X.getAttribute "mode" <$>
                         getParamNode
   let
@@ -70,14 +70,13 @@ renderSubmit ini n = do
           ))
 
       "notFound" ## conditionalChildren (const runChildren) isNothing
-  withSplices (withSplices runChildren cidSplices `defer` getCid')
-    (if mode == Submit then do
-        "email" ## \p -> return $ yieldRuntimeText $
-                         maybe (return "") getUserEmail =<< (fmap uid . user) <$> p
-        "preHomepage" ## const $ return $ yieldRuntimeText $
-          return . maybe "" HTML.text =<<
-          ((hush . decodeUtf8') =<<) <$> (lift $ getParam "pre_homepage")
-     else return mempty) n
+    submitSplices = if mode == Submit then do
+      "preHomepage" ## return $ yieldRuntimeText $
+        return . maybe "" HTML.text =<<
+        ((hush . decodeUtf8') =<<) <$> (lift $ getParam "pre_homepage")
+                    else mempty
+  withLocalSplices submitSplices mempty $
+    withSplices runChildren cidSplices `defer` getCid'
   where
     getCid' = fmap snd <$> lift getCid
 
@@ -143,11 +142,3 @@ renderListOfEdits =
       <*> DE.value DE.text
       <*> DE.value DE.bool
       <*> DE.value DE.bool
-
-getUserEmail
-  :: UserID
-  -> RuntimeSplice AppHandler Text
-getUserEmail = (fromMaybe "" . hush <$>) . lift . run . flip query stmt
-  where
-    stmt = statement sql (EN.value EN.int4) (DE.singleRow $ DE.value DE.text) False
-    sql = "SELECT email FROM users WHERE uid=$1"

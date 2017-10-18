@@ -33,23 +33,24 @@ import Piperka.Action.Query
 import Piperka.Util (maybeParseInt, if', maybeParseInt)
 
 processAction
-  :: UserPrefsWithStats
+  :: Maybe UserWithStats
   -> (RuntimeSplice AppHandler
-      (Maybe (Maybe ActionError, Maybe Action), UserPrefsWithStats))
+      (Maybe (Maybe ActionError, Maybe Action), Maybe UserWithStats))
 processAction usr = do
   rq <- lift getRequest
   let params = rqParams rq
-  let uid = A.uid <$> (user $ prefs usr)
+  let uid = A.uid . user <$> usr
   action <- extractAction rq params uid
   case action of
    Nothing -> return (Nothing, usr)
    Just (Left err) -> return (Just (Just $ SqlError err, Nothing), usr)
    Just (Right act) -> do
      result <- runExceptT $ do
-       u <- hoistEither $ note NeedsLogin $ user $ prefs usr
+       stats <- hoistEither $ note NeedsLogin $ usr
+       let u = user stats
        let csrf = head <$> lookup "csrf_ham" params
        let csrfOk = csrf == (Just $ toASCIIBytes $ ucsrfToken u)
-       perform act csrfOk usr $ A.uid u
+       perform act csrfOk stats $ A.uid u
      return $ (\(e,x) -> (Just (e, Just act), x)) $
        either ((,usr) . Just) (Nothing,) result
 
@@ -106,12 +107,12 @@ extractAction rq params uid = do
 perform
   :: Action
   -> Bool
-  -> UserPrefsWithStats
+  -> UserWithStats
   -> Int32
-  -> ExceptT ActionError (RuntimeSplice AppHandler) UserPrefsWithStats
+  -> ExceptT ActionError (RuntimeSplice AppHandler) (Maybe UserWithStats)
 perform Logout True _ _ = do
   lift $ lift $ withTop auth logoutUser
-  return defaultUserPrefsWithStats
+  return Nothing
 
 perform (Bookmark [(cid, _, Just (ord, subord, _))]) True usr uid =
   performSql usr $ setBookmark uid (fromIntegral cid)
@@ -126,7 +127,7 @@ perform (Unsubscribe cid) True usr uid =
 perform (Revert cids) True usr uid =
   performSql usr $ revertUpdates uid cids
 
-perform (Bookmark _) _ usr _ = return usr
+perform (Bookmark _) _ usr _ = return $ Just usr
 perform (Subscribe cid _) False _ _ = csrfFailWithComic cid
 perform (Unsubscribe cid) False _ _ = csrfFailWithComic cid
 perform _ False _ _ = hoistEither $ Left CsrfFail
@@ -134,17 +135,17 @@ perform _ False _ _ = hoistEither $ Left CsrfFail
 -- Get the comic title.  If it fails, give another error
 csrfFailWithComic
   :: Int
-  -> ExceptT ActionError (RuntimeSplice AppHandler) UserPrefsWithStats
+  -> ExceptT ActionError (RuntimeSplice AppHandler) (Maybe UserWithStats)
 csrfFailWithComic cid = do
   title <- either (throwE . SqlError) return =<< (lift $ getTitle cid)
   hoistEither $ Left $ maybe UnknownAction CsrfFailWithComic title
 
 performSql
-  :: UserPrefsWithStats
+  :: UserWithStats
   -> RuntimeSplice AppHandler (Either Hasql.Session.Error (Int32, Int32))
-  -> ExceptT ActionError (RuntimeSplice AppHandler) UserPrefsWithStats
+  -> ExceptT ActionError (RuntimeSplice AppHandler) (Maybe UserWithStats)
 performSql usr act =
-  either (\x -> throwE $ SqlError x) return =<<
+  either (\x -> throwE $ SqlError x) (return . Just) =<<
   (lift $ runExceptT $ do
       (total, count) <- ExceptT act
       return $ usr {unreadCount = (total, count)})

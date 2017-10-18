@@ -16,7 +16,6 @@ import qualified Data.Binary
 import Data.ByteString (ByteString)
 import Data.ByteString.Lazy (toStrict)
 import Data.Functor.Contravariant
-import Data.Maybe
 import Data.Monoid
 import qualified Data.Text as T
 import Data.Text (Text)
@@ -49,19 +48,19 @@ userRow x =
   <*> x
   <*> DE.value DE.uuid
   <*> DE.value DE.bool
+  <*> prefsRow
 
-prefsRow :: DE.Row UUID -> DE.Row UserPrefs
-prefsRow x =
+prefsRow :: DE.Row UserPrefs
+prefsRow =
   UserPrefs
-  <$> (liftA Just $ userRow x)
-  <*> DE.value DE.int4
+  <$> DE.value DE.int4
   <*> (liftA intToColumns (DE.value DE.int4))
   <*> DE.value DE.bool
 
 -- I get the feeling that there should be a better way to express this.
-prefsStatsRow :: DE.Row UUID -> DE.Row UserPrefsWithStats
-prefsStatsRow x =
-  (\(a,b,c) -> UserPrefsWithStats a (b,c))
+userStatsRow :: DE.Row UUID -> DE.Row UserWithStats
+userStatsRow x =
+  (\(a,b,c) -> UserWithStats a (b,c))
   <$> (DE.value $ DE.composite ((,,)
                                 <$> DE.compositeValue DE.int4
                                 <*> DE.compositeValue DE.int4
@@ -69,27 +68,22 @@ prefsStatsRow x =
   <*> liftA monadicTuple2 ((,)
                            <$> DE.nullableValue DE.int4
                            <*> DE.nullableValue DE.int4)
-  <*> prefsRow x
+  <*> userRow x
 
-prefsDefaultRow :: Text -> DE.Row UserPrefs
-prefsDefaultRow n =
-  UserPrefs
-  <$> (liftA Just $
-       MyData
-       <$> DE.value DE.int4
-       <*> pure n
-       <*> DE.value DE.uuid
-       <*> DE.value DE.uuid
-       <*> DE.value DE.bool
-      )
-  <*> pure (rows defaultUserPrefs)
-  <*> pure (columns defaultUserPrefs)
-  <*> pure (newExternWindows defaultUserPrefs)
+userDefaultRow :: Text -> DE.Row MyData
+userDefaultRow n =
+  MyData
+  <$> DE.value DE.int4
+  <*> pure n
+  <*> DE.value DE.uuid
+  <*> DE.value DE.uuid
+  <*> DE.value DE.bool
+  <*> pure defaultUserPrefs
 
-prefsStatsDefaultRow :: Text -> DE.Row UserPrefsWithStats
-prefsStatsDefaultRow n =
-  UserPrefsWithStats 0 (0,0) Nothing
-  <$> prefsDefaultRow n
+statsDefaultRow :: Text -> DE.Row UserWithStats
+statsDefaultRow n =
+  UserWithStats 0 (0,0) Nothing
+  <$> userDefaultRow n
 
 doLogin
   :: Text
@@ -139,7 +133,7 @@ doPrepare
   => Maybe u
   -> Text
   -> Handler App (AuthManager u App) (Either Error AuthID)
-doPrepare u p = withTop db $ run $ query (p, extractUid =<< u) stmt
+doPrepare u p = withTop db $ run $ query (p, extractUid <$> u) stmt
   where
     stmt = statement sql encode decode True
     encode = contrazip2 (EN.value EN.text) (EN.nullableValue EN.int4)
@@ -176,7 +170,7 @@ attach
   => u
   -> AuthID
   -> Handler App (AuthManager u App) (Either Error ())
-attach u i = withTop db $ run $ query (fromJust $ extractUid u, i) stmt
+attach u i = withTop db $ run $ query (extractUid u, i) stmt
   where
     stmt = statement sql encode DE.unit True
     encode = contrazip2 (EN.value EN.int4) (EN.value EN.int4)
@@ -189,32 +183,32 @@ isDuplicateSqlError (ResultError (ServerError c _ _ _)) = c == unique_violation
 isDuplicateSqlError _ = False
 
 -- For use with partial HTML render and AJAX calls
-instance IAuthBackend UserPrefs AuthID Error App where
+instance IAuthBackend MyData AuthID Error App where
   preparePasswordCreate = doPrepare
   cancelPrepare = doCancelPrepare
-  create u i = doCreate u i $ DE.singleRow $ prefsDefaultRow u
+  create u i = doCreate u i $ DE.singleRow $ userDefaultRow u
   attachLoginMethod = attach
-  login u pwd = doLogin u pwd prefsRow
+  login u pwd = doLogin u pwd userRow
                 "select uid, name, p_session, csrf_ham, \
                 \uid in (select uid from moderator) as moderator, \
                 \display_rows, display_columns, new_windows \
                 \from auth_login($1, $2) join users using (uid)"
   logout = doLogout
-  recover t = doRecover t prefsRow
+  recover t = doRecover t userRow
               "select uid, name, csrf_ham, \
               \uid in (select uid from moderator) as moderator, \
               \display_rows, display_columns, new_windows \
               \from recover_session($1) join users using (uid)"
-  getUserId = return . toStrict . Data.Binary.encode . uid . fromJust . user
+  getUserId = return . toStrict . Data.Binary.encode . uid
   isDuplicateError = return . isDuplicateSqlError
 
 -- Side effect: updates last read stats on login/recover
-instance IAuthBackend UserPrefsWithStats AuthID Error App where
+instance IAuthBackend UserWithStats AuthID Error App where
   preparePasswordCreate = doPrepare
   cancelPrepare = doCancelPrepare
-  create u i = doCreate u i $ DE.singleRow $ prefsStatsDefaultRow u
+  create u i = doCreate u i $ DE.singleRow $ statsDefaultRow u
   attachLoginMethod = attach
-  login u pwd = doLogin u pwd prefsStatsRow
+  login u pwd = doLogin u pwd userStatsRow
                 "select (select (new_comics, total_new, new_in) from \
                 \get_and_update_stats(uid, true)), \
                 \mod_queue, cast(mod_days as int), \
@@ -226,7 +220,7 @@ instance IAuthBackend UserPrefsWithStats AuthID Error App where
                 \extract(days from now() - last_moderate) as mod_days \
                 \from moderator) as m using (uid)"
   logout = doLogout
-  recover t = doRecover t prefsStatsRow
+  recover t = doRecover t userStatsRow
               "select (select (new_comics, total_new, new_in) from \
               \get_and_update_stats(uid, false)), \
               \mod_queue, cast(mod_days as int), \
@@ -237,19 +231,19 @@ instance IAuthBackend UserPrefsWithStats AuthID Error App where
               \where cid in (select cid from comics)) as mod_queue, \
               \extract(days from now() - last_moderate) as mod_days \
               \from moderator) as m using (uid)"
-  getUserId = return . toStrict . Data.Binary.encode . uid . fromJust . user . prefs
+  getUserId = return . toStrict . Data.Binary.encode . uid . user
   isDuplicateError = return . isDuplicateSqlError
 
 oauth2Login
   :: Provider
   -> Text
-  -> Handler App (AuthManager UserPrefs App) (Either Error (Maybe UserPrefs))
+  -> Handler App (AuthManager MyData App) (Either Error (Maybe MyData))
 oauth2Login provider token = do
   withTop db $ run $ query (fromIntegral $ providerOpid provider, token) stmt
   where
     stmt = statement sql encode decode True
     encode = contrazip2 (EN.value EN.int4) (EN.value EN.text)
-    decode = DE.maybeRow $ prefsRow (DE.value DE.uuid)
+    decode = DE.maybeRow $ userRow (DE.value DE.uuid)
     sql = "select uid, name, p_session, csrf_ham, \
           \uid in (select uid from moderator) as moderator, \
           \display_rows, display_columns, new_windows \
@@ -262,25 +256,18 @@ instance UserData MyData where
     , csrfToken = toText ucsrfToken
     }
 
-instance UserData UserPrefs where
-  extractUser UserPrefs{..} = AuthUser
-    { name = uname $ fromJust user
-    , session = toText $ usession $ fromJust user
-    , csrfToken = toText $ ucsrfToken $ fromJust user
-    }
-
-instance UserData UserPrefsWithStats where
-  extractUser UserPrefsWithStats{..} = AuthUser
-    { name = uname $ fromJust $ user prefs
-    , session = toText $ usession $ fromJust $ user prefs
-    , csrfToken = toText $ ucsrfToken $ fromJust $ user prefs
+instance UserData UserWithStats where
+  extractUser UserWithStats{..} = AuthUser
+    { name = uname user
+    , session = toText $ usession user
+    , csrfToken = toText $ ucsrfToken user
     }
 
 class HasUserID u where
-  extractUid :: u -> Maybe UserID
+  extractUid :: u -> UserID
 
-instance HasUserID UserPrefs where
-  extractUid u = uid <$> user u
+instance HasUserID MyData where
+  extractUid u = uid u
 
-instance HasUserID UserPrefsWithStats where
-  extractUid u = uid <$> (user $ prefs u)
+instance HasUserID UserWithStats where
+  extractUid u = uid $ user u

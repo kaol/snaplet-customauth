@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 
-module Piperka.Account (renderAccountForm) where
+module Piperka.Account (renderAccountForm, getUserEmail) where
 
 import Control.Monad.Trans
 import Data.Maybe
@@ -22,21 +22,21 @@ import Piperka.Profile.Types (intToPrivacy, Privacy)
 import Piperka.Listing.Types (intToColumns, ViewColumns)
 
 renderAccountForm
-  :: RuntimeAppHandler UserPrefs
+  :: RuntimeAppHandler MyData
 renderAccountForm =
   eitherDeferMap act stdSqlErrorSplice
   (\n' -> withLocalSplices
           (accountSplices n')
           (accountAttrSplices $ snd <$> n') runChildren)
   where
-    act p = do
-      upd <- lift $ accountUpdates p
-      accs <- lift $ getAccountSettings $ uid $ fromJust $ user p
+    act usr = do
+      upd <- lift $ accountUpdates usr
+      accs <- lift $ getAccountSettings $ uid usr
       return $ accs >>= \a -> Right $
-        either (\e -> (Just e, (a, p))) (\p' -> (Nothing, (a, p'))) upd
+        either (\e -> (Just e, (a, usr))) (\u' -> (Nothing, (a, u'))) upd
 
 accountSplices
-  :: RuntimeSplice AppHandler (Maybe AccountUpdateError, (UserAccountSettings, UserPrefs))
+  :: RuntimeSplice AppHandler (Maybe AccountUpdateError, (UserAccountSettings, MyData))
   -> Splices (Splice AppHandler)
 accountSplices n = mapV ($ n) $ do
   "writeup" ## pureSplice . textSplice $ HTML.text . fromMaybe "" . writeup . fst . snd
@@ -53,22 +53,23 @@ accountErrorSplice = stdConditionalSplice accountError . (fmap (,()))
     accountError AccountPasswordMissing = ("passwordMissing", Simple)
     accountError AccountPasswordWrong = ("wrongPassword", Simple)
     accountError AccountNewPasswordMismatch = ("passwordMismatch", Simple)
+    accountError (NeedsValidation _) = ("needsValidation", Simple)
 
 accountAttrSplices
-  :: RuntimeSplice AppHandler (UserAccountSettings, UserPrefs)
+  :: RuntimeSplice AppHandler (UserAccountSettings, MyData)
   -> Splices (Text -> RuntimeSplice AppHandler [(Text, Text)])
 accountAttrSplices n = mapV ($ n) $ do
   "value" ## valueSplice
-  "columns" ## columnSplice . fmap (columns . snd)
+  "columns" ## columnSplice . fmap (columns . prefs . snd)
   "privacy" ## privacySplice . fmap (privacy . fst)
 
 valueSplice
-  :: RuntimeSplice AppHandler (UserAccountSettings, UserPrefs)
+  :: RuntimeSplice AppHandler (UserAccountSettings, MyData)
   -> Text
   -> RuntimeSplice AppHandler [(Text, Text)]
-valueSplice n "new_windows" = newExternWindows . snd <$> n >>= \c ->
+valueSplice n "new_windows" = newExternWindows . prefs . snd <$> n >>= \c ->
   return $ if c then [("checked", "")] else []
-valueSplice n "rows" = rows . snd <$> n >>= \r ->
+valueSplice n "rows" = rows . prefs . snd <$> n >>= \r ->
   return $ [("value", T.pack $ show r)]
 valueSplice n "email" = email . fst <$> n >>= \e ->
   return $ maybeToList $ e >>= \e' -> return ("value", e')

@@ -13,7 +13,7 @@ import qualified Data.ByteString.Base64
 import Data.Text.Encoding (decodeLatin1, encodeUtf8)
 import Data.ByteString.Lazy (fromStrict)
 import qualified Data.Map.Lazy as M
-import Data.Maybe (fromJust, listToMaybe, fromMaybe, catMaybes)
+import Data.Maybe (listToMaybe, fromMaybe, catMaybes)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Snap
@@ -87,25 +87,25 @@ sanitizeUserHTML txt =
                   _ -> return []
 
 tryUpdate
-  :: UserPrefs
+  :: MyData
   -> AccountUpdate
-  -> AppHandler (Either AccountUpdateError UserPrefs)
-tryUpdate p a@(AccountUpdateUnpriv n r c) = let u = uid $ fromJust $ user p in
+  -> AppHandler (Either AccountUpdateError MyData)
+tryUpdate usr a@(AccountUpdateUnpriv n r c) = let u = uid usr in
   updateUnpriv u a >>=
-  return . either (Left . AccountSqlError) (const $ Right updatedPrefs)
+  return . either (Left . AccountSqlError) (const $ Right $ usr {prefs = updatedPrefs})
   where
-    updatedPrefs = p {newExternWindows = n, rows = r, columns = c}
+    updatedPrefs = (prefs usr) {newExternWindows = n, rows = r, columns = c}
 
-tryUpdate p a@(AccountUpdatePriv _ _ _ _ _ _ _ _) = runExceptT $ do
-  let u = uid $ fromJust $ user p
+tryUpdate usr a@(AccountUpdatePriv _ _ _ _ _ _ _ _) = runExceptT $ do
+  let u = uid usr
   ExceptT $ validatePriv u a
   withExceptT AccountSqlError $ ExceptT $ tryUpdatePriv u a
-  return p
+  return usr
 
 accountUpdates
-  :: UserPrefs
-  -> AppHandler (Either AccountUpdateError UserPrefs)
-accountUpdates p = do
+  :: MyData
+  -> AppHandler (Either AccountUpdateError MyData)
+accountUpdates usr = do
   params <- getParams
   update <- runMaybeT $ firstSuccess $ [
       MaybeT . return $ getAccountUpdateUnpriv params
@@ -116,7 +116,7 @@ accountUpdates p = do
         MaybeT . return $ (\(_,_,x) -> x) <$>
           (hush . decodeOrFail . fromStrict =<< (hush $ Data.ByteString.Base64.decode saved))
     ]
-  maybe (return $ Right p) (tryUpdate p) update
+  maybe (return $ Right usr) (tryUpdate usr) update
 
 privUpdateConfirmed
   :: Provider

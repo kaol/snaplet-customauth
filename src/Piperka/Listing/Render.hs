@@ -60,7 +60,7 @@ success mode n = do
     (callTemplate "_listingForm")
 
 renderListing
-  :: RuntimeAppHandler UserPrefs
+  :: RuntimeAppHandler (Maybe MyData)
 renderListing runtime = do
   mode <- read . unpack . fromJust . getAttribute "mode" <$> getParamNode
 
@@ -79,7 +79,8 @@ renderListing runtime = do
 
       addSort ord (p, q) = (p, q ++ [("sort", Just $ encodeUtf8 $ L.orderingToText ord)])
 
-      getListingData prefs = do
+      getListingData usr = do
+        let prefs = getPrefs usr
         (ord, paramOrd) <- case mode of
           Top -> return (L.TopDesc, Nothing)
           Graveyard -> return (L.TitleAsc, Nothing)
@@ -93,7 +94,7 @@ renderListing runtime = do
                   <$> getParam "offset"
         let limit = (rows prefs) * (columnsToInt $ columns prefs)
         lst <- getListing mode ord offset limit (((,) <$> uid <*> uname)
-                                                 <$> user prefs)
+                                                 <$> usr)
         let makeResult param =
               let pathQuery = maybe id addSort paramOrd $ getListingPathQuery mode param
                   tot = extractTotal param

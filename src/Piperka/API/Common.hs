@@ -60,7 +60,7 @@ runQueries actions = do
   either failWithMsg return =<< (runExceptT actions)
 
 runMaybeUserQueries
-  :: (Maybe UserPrefs -> ExceptT Error (Handler App App) a)
+  :: (Maybe MyData -> ExceptT Error (Handler App App) a)
   -> AppHandler a
 runMaybeUserQueries actions = do
   modifyResponse (setHeader "Content-Type" "application/json")
@@ -70,7 +70,7 @@ runMaybeUserQueries actions = do
         runExceptT . actions =<< withTop apiAuth currentUser)
 
 runUserQueries
-  :: (UserPrefs -> ExceptT Error (Handler App App) a)
+  :: (MyData -> ExceptT Error (Handler App App) a)
   -> AppHandler a
 runUserQueries actions = do
   modifyResponse (setHeader "Content-Type" "application/json")
@@ -82,20 +82,20 @@ runUserQueries actions = do
     )
 
 runModQueries
-  :: (UserPrefs -> ExceptT Error (Handler App App) a)
+  :: (MyData -> ExceptT Error (Handler App App) a)
   -> AppHandler a
 runModQueries actions = runUserQueries $ \u ->
-  if (moderator <$> user u) == Just True
+  if moderator u
   then actions u
   else lift $ simpleFail 403 "Moderator only"
 
 validateCsrf
-  :: Handler App v UserPrefs
+  :: Handler App v MyData
 validateCsrf = do
   u <- maybe (simpleFail 403 "User authentication failed") return =<<
        withTop apiAuth currentUser
   maybe (simpleFail 403 "CSRF token missing")
-    (\csrf -> if Just csrf == (ucsrfToken <$> user u)
+    (\csrf -> if csrf == ucsrfToken u
               then return ()
               else simpleFail 403 "CSRF validation failed") =<<
     ((Data.UUID.fromText =<<) <$> getParamText "csrf_ham")

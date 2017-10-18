@@ -2,6 +2,7 @@
 
 module Piperka.Action.Splices (renderAction) where
 
+import Control.Error.Util (note)
 import Data.Map.Syntax
 import Data.Monoid
 import Data.Text (Text)
@@ -17,9 +18,9 @@ import Piperka.Error.Splices (sqlErrorSplices)
 
 renderAction
   :: Splice AppHandler
-  -> RuntimeAppHandler (Maybe (Maybe ActionError, Maybe Action), UserPrefs)
+  -> RuntimeAppHandler (Maybe (Maybe ActionError, Maybe Action))
 renderAction contentSplice =
-  eitherDeferMap (return . maybe (Left ()) Right . fst)
+  eitherDeferMap (return . note ())
   (const contentSplice)
   (withSplices runChildren (actionSplices contentSplice))
 

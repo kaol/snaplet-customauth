@@ -7,7 +7,7 @@
 module Application
   ( MyData(..)
   , UserPrefs(..)
-  , UserPrefsWithStats(..)
+  , UserWithStats(..)
   , App(..)
   , AppHandler
   , RuntimeAppHandler
@@ -22,8 +22,8 @@ module Application
   , taglookup
   , extlookup
   , httpManager
-  , defaultUserPrefsWithStats
   , defaultUserPrefs
+  , getPrefs
   ) where
 
 ------------------------------------------------------------------------------
@@ -57,26 +57,42 @@ data MyData = MyData
   , usession :: UUID
   , ucsrfToken :: UUID
   , moderator :: Bool
+  , prefs :: UserPrefs
   } deriving (Show)
 
 data UserPrefs = UserPrefs
-  { user :: Maybe MyData
-  , rows :: Int32
+  { rows :: Int32
   , columns :: ViewColumns
   , newExternWindows :: Bool
   } deriving (Show)
 
-data UserPrefsWithStats = UserPrefsWithStats
+data UserWithStats = UserWithStats
   { newComics :: Int32
   , unreadCount :: (Int32,Int32)
   , modStats :: Maybe (Int32, Int32)
-  , prefs :: UserPrefs
+  , user :: MyData
   } deriving (Show)
+
+class HasPrefs u where
+  getPrefs :: u -> UserPrefs
+
+instance HasPrefs MyData where
+  getPrefs = prefs
+
+instance HasPrefs UserPrefs where
+  getPrefs = id
+
+instance HasPrefs UserWithStats where
+  getPrefs = prefs . user
+
+instance HasPrefs (Maybe MyData) where
+  getPrefs (Just u) = prefs u
+  getPrefs Nothing = defaultUserPrefs
 
 data App = App
   { _heist :: Snaplet (Heist App)
-  , _auth :: Snaplet (AuthManager UserPrefsWithStats App)
-  , _apiAuth :: Snaplet (AuthManager UserPrefs App)
+  , _auth :: Snaplet (AuthManager UserWithStats App)
+  , _apiAuth :: Snaplet (AuthManager MyData App)
   , _db :: Snaplet Hasql
   , _messages :: Snaplet SessionManager
   , _extlookup :: Int -> Text -> Maybe ExternalEntry
@@ -89,23 +105,14 @@ data AppInit = AppInit
   , tagFormPart :: Text
   }
 
-makeLenses ''App
-
-defaultUserPrefsWithStats :: UserPrefsWithStats
-defaultUserPrefsWithStats = UserPrefsWithStats
-  { newComics = 0
-  , unreadCount = (0,0)
-  , modStats = Nothing
-  , prefs = defaultUserPrefs
-  }
-
 defaultUserPrefs :: UserPrefs
 defaultUserPrefs = UserPrefs
-  { user = Nothing
-  , rows = 40
+  { rows = 40
   , columns = TwoColumn
   , newExternWindows = False
   }
+
+makeLenses ''App
 
 instance HasHeist App where
   heistLens = subSnaplet heist

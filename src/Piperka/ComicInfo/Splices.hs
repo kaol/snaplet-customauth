@@ -33,7 +33,7 @@ import Piperka.Util (formatTime', if', getCid)
 
 -- When used as a top level splice
 renderComicInfo
-  :: RuntimeAppHandler UserPrefs
+  :: RuntimeAppHandler (Maybe MyData)
 renderComicInfo n = do
   let success n' = withSplices runChildren comicInfoSplices n'
 
@@ -49,7 +49,7 @@ renderComicInfo n = do
   render False success failure n
 
 renderWithCid
-  :: RuntimeSplice AppHandler UserPrefs
+  :: RuntimeSplice AppHandler (Maybe MyData)
   -> Splice AppHandler
 renderWithCid n = do
   deadPage <- maybe False (read . T.unpack) . X.getAttribute "dead" <$>
@@ -79,7 +79,7 @@ render
   :: Bool
   -> RuntimeAppHandler ComicInfo
   -> RuntimeAppHandler ComicInfoError
-  -> RuntimeAppHandler UserPrefs
+  -> RuntimeAppHandler (Maybe MyData)
 render deadPage success failure n = do
   let getCid' p = fmap (\(a,b) -> (a,(b,p))) <$> lift getCid
   let getData b = do

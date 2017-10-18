@@ -5,7 +5,6 @@ module Piperka.Splices.Revert (renderRecent) where
 import Control.Applicative
 import Control.Monad.Trans
 import Data.Map.Syntax
-import Data.Maybe
 import Data.Monoid
 import Data.Text (Text)
 import Data.Vector (Vector)
@@ -23,7 +22,7 @@ import Application
 import Piperka.Error.Splices
 
 renderRecent
-  :: RuntimeAppHandler UserPrefs
+  :: RuntimeAppHandler MyData
 renderRecent n =
   eitherDeferMap return stdSqlErrorSplice
   (manyWith runChildren renderSplices renderAttrSplices) ((lift . getRecent) =<< n)
@@ -43,10 +42,10 @@ renderAttrSplices = "id" ## \n t -> do
     _ -> undefined
 
 getRecent
-  :: UserPrefs
+  :: MyData
   -> AppHandler (Either Error (Vector (Text, Text)))
 getRecent p = do
-  let u = uid $ fromJust $ user p
+  let u = uid p
   run $ query u stmt
   where
     stmt = statement sql (EN.value EN.int4) (DE.rowsVector decoder) True

@@ -11,6 +11,7 @@ module Piperka.Splices
 
 import Heist
 import Heist.Compiled as C
+import Control.Error.Util (note)
 import Data.DList (DList)
 import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
@@ -66,23 +67,22 @@ piperkaSplices ini = do
 
 renderMinimal
   :: AppInit
-  -> RuntimeAppHandler UserPrefs
+  -> RuntimeAppHandler (Maybe MyData)
   -> C.Splice AppHandler
 renderMinimal ini action =
   (\n -> withSplices (action n) (contentSplices' ini) n) `C.defer`
-  (fromMaybe defaultUserPrefs <$>
-   (lift $ withTop apiAuth $ combinedLoginRecover loginFailed))
+  (lift $ withTop apiAuth $ combinedLoginRecover loginFailed)
 
 renderContent
   :: AppInit
   -> [X.Node]
-  -> RuntimeAppHandler UserPrefs
+  -> RuntimeAppHandler (Maybe MyData)
 renderContent ini ns = C.withSplices (C.runNodeList ns) $ contentSplices' ini
 
-prefsMayCreate
+userMayCreate
   :: ExceptT (Either Hasql.Session.Error CreateFailure) (RuntimeSplice AppHandler)
-     (Maybe UserPrefsWithStats)
-prefsMayCreate = do
+     (Maybe UserWithStats)
+userMayCreate = do
   p <- lift $ lift $ withTop auth $ combinedLoginRecover loginFailed
   case p of
    Just _ -> return p
@@ -105,24 +105,26 @@ renderPiperka
 renderPiperka ini = do
   mayCreateUser <- getParamAttrBool "newUser"
   xs <- X.childNodes <$> getParamNode
-  let prefsWithStats = lift $ withTop auth $ combinedLoginRecover loginFailed
+  let userWithStats = lift $ withTop auth $ combinedLoginRecover loginFailed
   let getInner n = do
         content <- renderContent ini xs $ snd <$> n
         C.withSplices (C.callTemplate "_base")
           (contentSplices ini content) n
-      defaultInner = getInner $ return (Nothing, defaultUserPrefs)
-      renderInner s n = let inner = getInner $ (\(a, p) -> (a, prefs p)) <$> n
-                        in C.withSplices inner (statsSplices <> s) n
+      defaultInner = getInner $ return (Nothing, Nothing)
+      renderInner :: RuntimeAppHandler (Maybe (Maybe ActionError, Maybe Action), Maybe UserWithStats)
+      renderInner n =
+        let inner = getInner $ (\(a, u) -> (a, user <$> u)) <$> n
+        in C.eitherDeferMap (return . note () . snd)
+           (C.withSplices inner nullStatsSplices)
+           (C.withSplices inner statsSplices) n
   normal <- if mayCreateUser
             then
               (C.eitherDeferMap return (paramValueSplice . accountCreationFailed defaultInner)
-               (nullCreateSplice . renderInner mempty))
+               (nullCreateSplice . renderInner))
               `C.defer`
-              (runExceptT $ (lift . processAction) =<<
-               fromMaybe defaultUserPrefsWithStats <$> prefsMayCreate)
+              (runExceptT $ (lift . processAction) =<< userMayCreate)
             else
-              renderInner mempty `C.defer`
-              (processAction =<< fromMaybe defaultUserPrefsWithStats <$> prefsWithStats)
+              renderInner `C.defer` (processAction =<< userWithStats)
   bare <- renderMinimal ini $ nullCreateSplice .
           (C.withSplices (C.runNodeList xs)
            ((contentSplices' ini) <> ("onlyWithStats" ## const $ return mempty)))
@@ -131,8 +133,8 @@ renderPiperka ini = do
     codeGen $ if useMinimal then bare else normal
 
 statsSplices
-  :: Splices (RuntimeAppHandler (a, UserPrefsWithStats))
-statsSplices = mapV (. fmap snd) $ do
+  :: Splices (RuntimeAppHandler UserWithStats)
+statsSplices = do
   "unreadStats" ## \runtime -> return $ C.yieldRuntimeText $ do
     p <- runtime
     return $ case unreadCount p of
@@ -160,7 +162,7 @@ statsSplices = mapV (. fmap snd) $ do
     spl <- C.mayDeferMap (return . modStats)
            (C.withSplices C.runChildren modSplices) n
     return $ yieldRuntime $ do
-      m <- maybe False moderator . (user . prefs) <$> n
+      m <- moderator . user <$> n
       if m then C.codeGen spl else return mempty
   "onlyWithStats" ## const $ C.runChildren
 
@@ -175,41 +177,40 @@ nullStatsSplices = mapV (const . return) $ do
 contentSplices
   :: AppInit
   -> DList (Chunk AppHandler)
-  -> Splices (RuntimeAppHandler (Maybe (Maybe ActionError, Maybe Action), UserPrefs))
+  -> Splices (RuntimeAppHandler (Maybe (Maybe ActionError, Maybe Action), Maybe MyData))
 contentSplices ini content =
-  ("action" ## renderAction $ return content) <>
+  ("action" ## (\n -> renderAction (return content) $ fst <$> n)) <>
   (mapV (. fmap snd)) (contentSplices' ini)
 
 contentSplices'
   :: AppInit
-  -> Splices (RuntimeAppHandler UserPrefs)
+  -> Splices (RuntimeAppHandler (Maybe MyData))
 contentSplices' ini = do
   "subscribeForm" ## const $ callTemplate "_subscribe"
   "kaolSubs" ## renderKaolSubs
-  "ifLoggedIn" ## C.deferMany (C.withSplices C.runChildren loggedInSplices) .
-    \n -> user <$> n
+  "ifLoggedIn" ## C.deferMany (C.withSplices C.runChildren loggedInSplices)
   "ifLoggedOut" ## C.conditionalChildren
     (const C.runChildren)
-    (isNothing . user)
+    isNothing
   "notMod" ## \n -> do
     spl <- runChildren
     return $ yieldRuntime $ do
-      m <- maybe False moderator . user <$> n
+      m <- maybe False moderator <$> n
       if m
         then return mempty
         else lift (modifyResponse $ setResponseCode 403) >> codeGen spl
   "listing" ## renderListing
-  "externA" ## renderExternA
+  "externA" ## \n -> renderExternA $ getPrefs <$> n
   "withCid" ## renderWithCid
   "csrfForm" ## csrfForm
   "passwordRecovery" ## renderPasswordRecovery
   "usePasswordHash" ## renderUsePasswordHash
-  "accountForm" ## renderAccountForm
-  "recent" ## renderRecent
-  "submit" ## \n -> renderSubmit ini n
+  "submit" ## const $ renderSubmit ini
   "ifMod" ## C.conditionalChildren
     (const C.runChildren)
-    (maybe False moderator . user)
+    (maybe False moderator)
+  "email" ## defer $ \n -> return $ yieldRuntimeText $
+    maybe (return "") (lift . getUserEmail . uid) =<< n
 
 loggedInSplices
   :: Splices (RuntimeAppHandler MyData)
@@ -218,6 +219,8 @@ loggedInSplices = do
   "csrf" ## C.pureSplice . C.textSplice $ toText . ucsrfToken
   "profileLink" ## profileLink
   "listOfEdits" ## renderListOfEdits
+  "accountForm" ## renderAccountForm
+  "recent" ## renderRecent
 
 profileLink
   :: RuntimeAppHandler MyData
@@ -227,7 +230,7 @@ profileLink =
   in C.pureSplice . C.textSplice $ mkLink . uname
 
 csrfForm
-  :: RuntimeAppHandler UserPrefs
+  :: RuntimeAppHandler a
 csrfForm _ = do
   rootNode <- getParamNode
   let sub = X.childNodes rootNode

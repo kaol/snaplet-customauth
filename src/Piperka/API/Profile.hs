@@ -43,10 +43,10 @@ profileSubmission = do
   act <- maybe (simpleFail 400 "Unknown action") return =<<
          maybe (simpleFail 400 "Required parameter action missing") (return . parseAction) =<<
          getParam "action"
-  runMaybeUserQueries $ \p -> do
-    let u = uid <$> (user =<< p)
+  runMaybeUserQueries $ \usr -> do
+    let u = uid <$> usr
     tgt <- ExceptT $ run $ query
-      (p >>= user >>= return . uid, name) $
+      (u, name) $
       statement sql (contrazip2 (EN.nullableValue EN.int4) (EN.value EN.text))
       (DE.maybeRow ((,) <$> (DE.value DE.int4) <*> (DE.value DE.bool))) True
     let noSuchUser = lift $ simpleFail 200 "No such user"
@@ -54,7 +54,7 @@ profileSubmission = do
     when (not perm) noSuchUser
     let profileAction sql' = do
           when (isNothing u) $ lift $ simpleFail 200 "You are not logged in."
-          u' <- uid . fromJust . user <$> (lift $ validateCsrf)
+          u' <- uid <$> (lift $ validateCsrf)
           when (target == u') $
             lift $ simpleFail 200 "Tricksy, trying to make a relationship with yourself."
           ExceptT $ withTop db $ run $ query (u', target) $

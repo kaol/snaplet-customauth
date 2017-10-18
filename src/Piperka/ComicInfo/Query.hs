@@ -22,10 +22,10 @@ getComicInfo
   => ([Int] -> [ComicTag])
   -> (Int -> Text -> Maybe ExternalEntry)
   -> n
-  -> UserPrefs
+  -> Maybe MyData
   -> RuntimeSplice AppHandler (Either ComicInfoError ComicInfo)
-getComicInfo taglookup extlookup cid prefs = do
-  let uid = Application.uid <$> user prefs
+getComicInfo taglookup extlookup cid usr = do
+  let uid = Application.uid <$> usr
   runExceptT $ do
     info' <- ExceptT $ (either (Left . SqlError) return) <$>
              (lift $ withTop db $ run $ query (uid, fromIntegral cid) $
@@ -49,10 +49,10 @@ getDeadComicInfo
   :: (Integral n)
   => ([Int] -> [ComicTag])
   -> n
-  -> UserPrefs
+  -> Maybe MyData
   -> RuntimeSplice AppHandler (Either ComicInfoError ComicInfo)
-getDeadComicInfo taglookup cid prefs = do
-  let uid = Application.uid <$> user prefs
+getDeadComicInfo taglookup cid usr = do
+  let uid = Application.uid <$> usr
   (either (Left . SqlError) (maybe (Left Missing) return)) <$>
     (lift $ withTop db $ run $ query (uid, fromIntegral cid) $
      deadInfoFetch taglookup)

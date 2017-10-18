@@ -8,10 +8,12 @@ module Piperka.Account.Query
   , validateToken
   , validatePriv
   , setOAuth2Login
+  , getUserEmail
   ) where
 
 import Control.Applicative
 import Control.Arrow
+import Control.Error.Util (hush)
 import Control.Monad.Trans.Except
 import Contravariant.Extras.Contrazip
 import Data.Functor.Contravariant
@@ -166,3 +168,11 @@ tryUpdatePriv u a = run $ query (u, a) stmt
         then deleteOAuth2Login -< (usr, oauth2Removes ac)
         else returnA -< ()
       updatePriv -< params
+
+getUserEmail
+  :: UserID
+  -> AppHandler Text
+getUserEmail = (fromMaybe "" . hush <$>) . run . flip query stmt
+  where
+    stmt = statement sql (EN.value EN.int4) (DE.singleRow $ DE.value DE.text) False
+    sql = "SELECT email FROM users WHERE uid=$1"

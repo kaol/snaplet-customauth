@@ -98,11 +98,11 @@ userPrefs = do
 
 setBookmark
   :: [Value]
-  -> UserPrefs
+  -> MyData
   -> UserQueryHandler ()
 setBookmark bookmark p = do
   lift $ validateCsrf
-  let u = uid $ fromJust $ user p
+  let u = uid p
   let act = case bookmark of
         [Number c, o] ->
           toBoundedInteger c >>= \cid ->
