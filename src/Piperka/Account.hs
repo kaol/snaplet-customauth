@@ -3,6 +3,7 @@
 
 module Piperka.Account (renderAccountForm, getUserEmail) where
 
+import Control.Lens
 import Control.Monad.Trans
 import Data.Maybe
 import Data.Text (Text)
@@ -10,7 +11,7 @@ import qualified Data.Text as T
 import Data.Map.Syntax
 import Heist
 import Heist.Compiled
-import Heist.Compiled.Extra (eitherDeferMap, stdConditionalSplice, IndexedAction(..))
+import Heist.Compiled.Extra (eitherDeferMap, runConditionalChildren, stdConditionalSplice, IndexedAction(..))
 import qualified HTMLEntities.Text as HTML
 
 import Application
@@ -27,7 +28,7 @@ renderAccountForm =
   eitherDeferMap act stdSqlErrorSplice
   (\n' -> withLocalSplices
           (accountSplices n')
-          (accountAttrSplices $ snd <$> n') runChildren)
+          (accountAttrSplices $ (over _1 userAccount . snd) <$> n') runChildren)
   where
     act usr = do
       upd <- lift $ accountUpdates usr
@@ -36,10 +37,17 @@ renderAccountForm =
         either (\e -> (Just e, (a, usr))) (\u' -> (Nothing, (a, u'))) upd
 
 accountSplices
-  :: RuntimeSplice AppHandler (Maybe AccountUpdateError, (UserAccountSettings, MyData))
+  :: RuntimeSplice AppHandler (Maybe AccountUpdateError, (AccountData, MyData))
   -> Splices (Splice AppHandler)
 accountSplices n = mapV ($ n) $ do
-  "writeup" ## pureSplice . textSplice $ HTML.text . fromMaybe "" . writeup . fst . snd
+  let runId f = runConditionalChildren . fmap
+        (null . filter (f . identification) . providers . fst . snd)
+  "writeup" ## pureSplice . textSplice $ HTML.text . fromMaybe "" .
+    writeup . userAccount . fst . snd
+  "haveRemovableProviders" ## runId isJust
+  "haveAttachableProviders" ## runId isNothing
+  "oauth2Providers" ## deferMany (withSplices runChildren oauth2Splices) . fmap
+    (providers . fst . snd)
   "hasError" ## mayDeferMap (return . fst) accountErrorSplice
 
 accountErrorSplice
@@ -92,3 +100,11 @@ privacySplice n t = do
   userPriv <- n
   let priv = (intToPrivacy :: Int -> Privacy) $ read $ T.unpack t
   return $ if userPriv == priv then [("checked", "")] else []
+
+oauth2Splices
+  :: Splices (RuntimeSplice AppHandler ProviderData -> Splice AppHandler)
+oauth2Splices = do
+  "label" ## pureSplice . textSplice $ label
+  "name" ## pureSplice . textSplice $ name
+  "identification" ## pureSplice . textSplice $ fromMaybe "" . identification
+  "hasIdentification" ## runConditionalChildren . fmap (isJust . identification)

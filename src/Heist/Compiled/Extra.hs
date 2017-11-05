@@ -62,6 +62,12 @@ conditionalChildren splice test runtime = do
       then codeGen cs
       else mempty
 
+runConditionalChildren
+  :: Monad n
+  => RuntimeSplice n Bool
+  -> Splice n
+runConditionalChildren = conditionalChildren (const runChildren) id
+
 checkedAttrSplice
   :: forall (n :: * -> *) t. Monad n
   => (t -> Bool)

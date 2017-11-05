@@ -84,33 +84,34 @@
 	    <tr>
 	      <th>Provider</th>
 	      <th>ID</th>
-	      <h:removableProviders>
+	      <h:haveRemovableProviders>
 		<th>Remove</th>
-	      </h:removableProviders>
-	      <h:attachableProviders>
+	      </h:haveRemovableProviders>
+	      <h:haveAttachableProviders>
 		<th>Attach (opens in a new window/tab)</th>
-	      </h:attachableProviders>
+	      </h:haveAttachableProviders>
 	    </tr>
 	    <h:oauth2Providers>
 	      <tr>
 		<td><h:label/></td>
 		<td><h:identification/></td>
-		<h:removableProviders>
+		<h:haveRemovableProviders>
 		  <td>
 		    <h:hasIdentification>
 		      <input type="checkbox" name="remove_oauth2" value="${h:name}"/>
 		    </h:hasIdentification>
 		  </td>
-		</h:removableProviders>
-		<h:attachableProviders>
+		</h:haveRemovableProviders>
+		<h:haveAttachableProviders>
 		  <td>
 		    <h:hasIdentification check="False">
 		      <a href="/s/account?settings_type=attach_oauth2&provider=${h:name}" target="_blank" class="oauth2_add">Attach</a>
 		    </h:hasIdentification>
 		  </td>
-		</h:attachableProviders>
+		</h:haveAttachableProviders>
 	      </tr>
 	    </h:oauth2Providers>
+	  </table>
 	  <h3>Change email address</h3>
 	  <p>
 	    New email: <input type="email" name="new_email" h:value="email"/>

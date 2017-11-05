@@ -17,7 +17,6 @@ import Control.Error.Util (hush)
 import Control.Monad.Trans.Except
 import Contravariant.Extras.Contrazip
 import Data.Functor.Contravariant
-import qualified Data.Map.Strict as M
 import Data.Maybe
 import Data.Monoid
 import qualified Data.Text as T
@@ -37,10 +36,10 @@ import Piperka.Profile.Types (intToPrivacy, privacyToInt)
 
 getAccountSettings
   :: UserID
-  -> AppHandler (Either Error UserAccountSettings)
+  -> AppHandler (Either Error AccountData)
 getAccountSettings u = runExceptT $ do
-  res1 <- ExceptT $ run $ query u stmt1
-  res1 . M.fromList <$> (ExceptT $ run $ query u stmt2)
+  res1 <- AccountData <$> (ExceptT $ run $ query u stmt1)
+  res1 <$> (ExceptT $ run $ query u stmt2)
   where
     stmt1 = statement sql1 encode (DE.singleRow decode1) True
     stmt2 = statement sql2 encode (DE.rowsList decode2) True
@@ -49,9 +48,14 @@ getAccountSettings u = runExceptT $ do
               <$> (liftA intToPrivacy $ DE.value DE.int4)
               <*> DE.nullableValue DE.text
               <*> DE.nullableValue DE.text
-    decode2 = (,) <$> (liftA opidProvider $ DE.value DE.int4) <*> DE.value DE.text
+    decode2 = ProviderData
+              <$> DE.value DE.text
+              <*> DE.value DE.text
+              <*> DE.nullableValue DE.text
     sql1 = "SELECT privacy, email, writeup FROM users WHERE uid=$1"
-    sql2 = "SELECT opid, identification FROM login_method_oauth2 WHERE uid=$1"
+    sql2 = "SELECT name, display_name, identification FROM oauth2_provider LEFT JOIN \
+           \(SELECT identification, opid FROM login_method_oauth2 WHERE uid=$1) \
+           \USING (opid) ORDER BY display_name"
 
 checkPassword
   :: Query (UserID, Text) Bool

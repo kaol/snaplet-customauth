@@ -3,7 +3,6 @@
 module Piperka.Account.Types where
 
 import Data.Binary
-import Data.Map.Strict (Map)
 import Data.Int
 import Data.Text (Text)
 import GHC.Generics (Generic)
@@ -14,15 +13,22 @@ import Piperka.API.OAuth2.Types
 import Piperka.Listing.Types (ViewColumns(..))
 import Piperka.Profile.Types (Privacy(..))
 
+data AccountData = AccountData
+  { userAccount :: UserAccountSettings
+  , providers :: [ProviderData]
+  }
+
 data UserAccountSettings = UserAccountSettings
   { privacy :: Privacy
   , email :: Maybe Text
   , writeup :: Maybe Text
-  , identification :: Map Provider Text
   } deriving (Show, Eq)
 
-emptySettings :: UserAccountSettings
-emptySettings = UserAccountSettings Private Nothing Nothing mempty
+data ProviderData = ProviderData
+  { label :: Text
+  , name :: Text
+  , identification :: Maybe Text
+  }
 
 data AccountUpdateError = AccountSqlError S.Error
                         | AccountPasswordMissing
