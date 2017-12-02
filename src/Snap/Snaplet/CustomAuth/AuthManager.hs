@@ -45,14 +45,12 @@ data AuthManager u e b = forall i. IAuthBackend u i e b => AuthManager
   , userField :: ByteString
   , passwordField :: ByteString
   , stateStore' :: SnapletLens (Snaplet b) SessionManager
-  , getKey' :: Provider -> (Text, Text)
   , oauth2Provider :: Maybe Provider
   , authFailData :: Maybe (AuthFailure e)
   }
 
 data OAuth2Settings u i e b = IAuthBackend u i e b => OAuth2Settings {
     enabledProviders :: [Provider]
-  , getKey :: Provider -> (Text, Text)
   , oauth2Check :: Provider -> Text -> Handler b (AuthManager u e b) (Either e (Maybe ByteString))
   , oauth2Login :: Provider -> Text -> Handler b (AuthManager u e b) (Either e (Maybe u))
   , oauth2Failure :: Handler b (AuthManager u e b) ()

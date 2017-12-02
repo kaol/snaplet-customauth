@@ -126,7 +126,6 @@ authInit oa s = makeSnaplet (view authName s) "Custom auth" Nothing $ do
     , userField = s ^. authUserField
     , passwordField = s ^. authPasswordField
     , stateStore' = maybe (error "oauth2 hooks not defined") stateStore oa
-    , getKey' = maybe (error "oauth2 hooks not defined") getKey oa
     , oauth2Provider = Nothing
     , authFailData = Nothing
     }

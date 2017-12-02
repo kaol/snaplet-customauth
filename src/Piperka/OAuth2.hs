@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE CPP #-}
 
 module Piperka.OAuth2 (piperkaOAuth2) where
 
@@ -18,19 +17,12 @@ import qualified Backend
 import Piperka.Account.Action (privUpdateConfirmed)
 import Piperka.OAuth2.Query
 
-#if defined DEVEL_OAUTH2 || defined PROD_OAUTH2
-import qualified Piperka.Keys as K
-#else
-import qualified Piperka.Keys.Dummy as K
-#endif
-
 piperkaOAuth2
   :: SnapletLens (Snaplet App) SessionManager
   -> Manager
   -> OAuth2Settings MyData AuthID Error App
 piperkaOAuth2 s m = OAuth2Settings {
     enabledProviders = [ Reddit, Google ]
-  , getKey = K.getKey
   , oauth2Check = Backend.oauth2Check
   , oauth2Login = Backend.oauth2Login
   , oauth2Failure = handleFailure

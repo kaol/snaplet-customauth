@@ -33,6 +33,11 @@
     <h:on err="OAuth2Failure BadState">
       Mismatch in generated and received state tokens.
     </h:on>
+    <h:on err="OAuth2Failure ConfigurationError">
+      Piperka isn't correctly configured with OAuth2 provider keys.
+      This shouldn't happen and this situation won't be resolved
+      without web admin action.
+    </h:on>
     <h:on err="OAuth2Failure IdExtractionFailed">
       Failed to extract user ID from the provider.
     </h:on>

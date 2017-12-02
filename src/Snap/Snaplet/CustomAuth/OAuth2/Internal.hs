@@ -26,6 +26,7 @@ import qualified Data.ByteString.Base64
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Lazy (toStrict, fromStrict)
 import Data.Char (chr)
+import qualified Data.Configurator
 import Data.HashMap.Lazy (HashMap, lookup)
 import Data.Maybe (isJust)
 import Data.Monoid
@@ -76,11 +77,18 @@ getRedirUrl p token o =
 
 redirectToProvider
   :: Provider
-  -> Handler b (AuthManager u e b) ()
+  -> Handler b (AuthManager u e b) Bool
 redirectToProvider provider = do
-  store <- gets stateStore'
-  key <- ($ provider) <$> gets getKey'
+  param <- buildOAuth2Param provider
+  maybe (return False) (\x -> redirectToProvider' provider x >> return True) param
+
+redirectToProvider'
+  :: Provider
+  -> OAuth2
+  -> Handler b (AuthManager u e b) ()
+redirectToProvider' provider param = do
   -- Generate a state token and store it in SessionManager
+  store <- gets stateStore'
   stamp <- liftIO $ (T.pack . show) <$> getCurrentTime
   name <- getStateName
   let randomChar i
@@ -93,27 +101,32 @@ redirectToProvider provider = do
     setInSession name token
     setInSession (name <> "_stamp") stamp
     commitSession
-  redirUrl <- serializeURIRef' . getRedirUrl provider token <$> buildOAuth2Param provider key
+  let redirUrl = serializeURIRef' $ getRedirUrl provider token param
   redirect' redirUrl 303
 
 buildOAuth2Param
   :: Provider
-  -> (Text, Text)
-  -> Handler b (AuthManager u e b) OAuth2
-buildOAuth2Param provider (clientId, clientSecret) = do
-  -- TODO hostname
+  -> Handler b (AuthManager u e b) (Maybe OAuth2)
+buildOAuth2Param provider = do
+  cfg <- getSnapletUserConfig
   root <- getSnapletRootURL
-  let callback = URI (Scheme "http")
-                 (Just $ Authority Nothing (Host "dev.piperka.net") Nothing)
-                 (root <> "/oauth2callback" <> (C8.pack $ show provider)) mempty Nothing
-  let (endpoint1, endpoint2, _) = endpoints provider
-  return $ OAuth2
-     { oauthClientId = clientId
-     , oauthClientSecret = clientSecret
-     , oauthCallback = Just callback
-     , oauthOAuthorizeEndpoint = endpoint1
-     , oauthAccessTokenEndpoint = endpoint2
-     }
+  liftIO $ runMaybeT $ do
+    let providerName = T.toLower $ T.pack $ show provider
+        lookupProvider x = MaybeT $ Data.Configurator.lookup cfg (providerName <> x)
+    hostname <- MaybeT $ Data.Configurator.lookup cfg "hostname"
+    k <- lookupProvider ".key"
+    s <- lookupProvider ".secret"
+    let callback = URI (Scheme "http")
+                   (Just $ Authority Nothing (Host hostname) Nothing)
+                   (root <> "/oauth2callback/" <> (C8.pack $ show provider)) mempty Nothing
+        (endpoint1, endpoint2, _) = endpoints provider
+    return $ OAuth2
+      { oauthClientId = k
+      , oauthClientSecret = s
+      , oauthCallback = Just callback
+      , oauthOAuthorizeEndpoint = endpoint1
+      , oauthAccessTokenEndpoint = endpoint2
+      }
 
 endpoints
   :: Provider
@@ -163,6 +176,7 @@ oauth2Callback' s provider = do
   let ss = stateStore s
       mgr = httpManager s
   res <- runExceptT $ do
+    param <- noteT ConfigurationError $ MaybeT $ buildOAuth2Param provider
     expiredStamp <- lift $ withTop' ss $
       maybe (return True) (liftIO . isExpiredStamp) =<<
       fmap (read . T.unpack) <$> getFromSession (name <> "_stamp")
@@ -178,7 +192,6 @@ oauth2Callback' s provider = do
     -- Get the user id from provider
     (maybe (throwE IdExtractionFailed) return =<<) $ runMaybeT $ do
       code <- MaybeT $ (fmap ExchangeToken) <$> (lift $ getParamText "code")
-      param <- lift $ lift $ buildOAuth2Param provider $ (getKey s) provider
       -- TODO: catch?
       token <- either (const $ lift $ throwE AccessTokenFetchError) return =<< liftIO
         (fetchAccessToken mgr param code)

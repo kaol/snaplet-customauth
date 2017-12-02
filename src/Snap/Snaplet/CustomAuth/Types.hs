@@ -32,7 +32,7 @@ data CreateFailure =
 
 data OAuth2Failure =
     StateNotStored | StateNotReceived | ExpiredState | BadState
-  | IdExtractionFailed | NoStoredToken
+  | ConfigurationError | IdExtractionFailed | NoStoredToken
   | AlreadyUser | AlreadyLoggedIn
   | AttachNotLoggedIn | AlreadyAttached
   | ProviderError (Maybe Text)
