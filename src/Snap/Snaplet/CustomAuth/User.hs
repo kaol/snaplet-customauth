@@ -16,22 +16,22 @@ import Snap.Snaplet.CustomAuth.Util
 setUser
   :: UserData u
   => u
-  -> Handler b (AuthManager u b) ()
+  -> Handler b (AuthManager u e b) ()
 setUser usr = do
   sesName <- gets sessionCookieName
   let udata = extractUser usr
   -- TODO
-  let wafer = Cookie sesName (encodeUtf8 $ session udata) Nothing (Just "localhost") (Just "/") False False
+  let wafer = Cookie sesName (encodeUtf8 $ session udata) Nothing Nothing (Just "/") False False
   modifyResponse $ addResponseCookie wafer
 
-currentUser :: UserData u => Handler b (AuthManager u b) (Maybe u)
+currentUser :: UserData u => Handler b (AuthManager u e b) (Maybe u)
 currentUser = do
   u <- get
   return $ activeUser u
 
 recoverSession
   :: IAuthBackend u i e b
-  => Handler b (AuthManager u b) ()
+  => Handler b (AuthManager u e b) ()
 recoverSession = do
   sesName <- gets sessionCookieName
   usr <- runMaybeT $ do

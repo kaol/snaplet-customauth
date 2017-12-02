@@ -17,7 +17,7 @@ import Data.Maybe (listToMaybe, fromMaybe, catMaybes)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Snap
-import Snap.Snaplet.CustomAuth (Provider, parseProvider)
+import Snap.Snaplet.CustomAuth.OAuth2 (Provider, parseProvider)
 import Snap.Snaplet.Session
 import Text.HTML.TagSoup
 
@@ -122,7 +122,7 @@ privUpdateConfirmed
   :: Provider
   -> Text
   -> ByteString
-  -> AppHandler ()
+  -> Handler App v ()
 privUpdateConfirmed _ _ d = do
   withTop messages $ do
     setInSession "p_priv" (decodeLatin1 $ Data.ByteString.Base64.encode d)

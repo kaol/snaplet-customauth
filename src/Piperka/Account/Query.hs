@@ -54,7 +54,7 @@ getAccountSettings u = runExceptT $ do
               <*> DE.nullableValue DE.text
     sql1 = "SELECT privacy, email, writeup FROM users WHERE uid=$1"
     sql2 = "SELECT name, display_name, identification FROM oauth2_provider LEFT JOIN \
-           \(SELECT identification, opid FROM login_method_oauth2 WHERE uid=$1) \
+           \(SELECT identification, opid FROM login_method_oauth2 WHERE uid=$1) AS x \
            \USING (opid) ORDER BY display_name"
 
 checkPassword

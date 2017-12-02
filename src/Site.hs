@@ -36,6 +36,8 @@ import Control.Lens
 import Piperka.ComicInfo.Tag
 import Piperka.ComicInfo.External
 import Piperka.API
+import Piperka.Account (mayCreateAccount)
+import Piperka.OAuth2
 
 ------------------------------------------------------------------------------
 -- | The application's routes.
@@ -48,6 +50,7 @@ routes =
   , ("/s/uprefs", userPrefs)
   , ("/s/archive/:cid", dumpArchive)
   , ("/s/profile", profileSubmission)
+  , ("/s/attachProvider/:provider", attachProvider)
   -- Moderator interface
   , ("/s/sinfo/:sid", readSubmit)
   , ("/s/sinfo2/:sid", readSubmit)
@@ -85,7 +88,8 @@ app = makeSnaplet "piperka" "Piperka application." Nothing $ do
        initCookieSessionManager "site_key.txt" "messages" Nothing (Just 3600)
   a <- nestSnaplet "auth" auth $ authInit Nothing $ authSettings
        & authName .~ "auth"
-  a' <- nestSnaplet "apiAuth" apiAuth $ authInit Nothing $ authSettings
+  a' <- nestSnaplet "apiAuth" apiAuth $ authInit (Just $ piperkaOAuth2 (subSnaplet messages) mgr) $
+        authSettings
         & authName .~ "apiAuth"
   h <- nestSnaplet "" heist $ heistInit' "templates" $
        emptyHeistConfig
@@ -95,5 +99,5 @@ app = makeSnaplet "piperka" "Piperka application." Nothing $ do
        & hcTemplateLocations .~ [loadTemplates "templates"]
   d <- nestSnaplet "" db $ hasqlInit "postgresql://kaol@/piperka"
   addRoutes routes
-  wrapSite (<|> bracketDbOpen heistServe)
+  wrapSite (<|> bracketDbOpen (mayCreateAccount >> heistServe))
   return $ App h a a' d m elookup tlookup mgr

@@ -46,7 +46,7 @@ BEGIN
   END IF;
   IF pw_matches THEN
     IF pw_convert THEN
-      SELECT NULL FROM auth_create_password(auth_login.password, auth_login.uid);
+      PERFORM auth_create_password(auth_login.password, auth_login.uid);
       UPDATE users set passwd=null WHERE users.uid=auth_login.uid;
     END IF;
     RETURN QUERY SELECT auth_login.uid, do_login.p_session, do_login.csrf_ham FROM do_login(auth_login.uid);

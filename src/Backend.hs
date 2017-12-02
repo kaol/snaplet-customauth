@@ -6,7 +6,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module Backend ( oauth2Login ) where
+module Backend ( oauth2Login, oauth2Check ) where
 
 import Piperka.Listing.Types
 
@@ -22,14 +22,14 @@ import Data.Text (Text)
 import Data.Text.Encoding
 import Data.UUID
 import Snap
-import Snap.Snaplet.CustomAuth hiding (oauth2Login)
+import Snap.Snaplet.CustomAuth
+import Snap.Snaplet.CustomAuth.OAuth2 (Provider)
 import Snap.Snaplet.Hasql
 import Application
 import Hasql.Query
-import Hasql.Session (Error(..))
+import Hasql.Session (Error(..), ResultError(..), query)
 import qualified Hasql.Encoders as EN
 import qualified Hasql.Decoders as DE
-import Hasql.Session (ResultError(..), query)
 import PostgreSQL.ErrorCodes (unique_violation)
 
 import Piperka.API.OAuth2.Types
@@ -90,7 +90,7 @@ doLogin
   -> Text
   -> (DE.Row UUID -> DE.Row u)
   -> ByteString
-  -> Handler App (AuthManager u App) (Either Error (Maybe u))
+  -> Handler App (AnyAuth u) (Either Error (Maybe u))
 doLogin u pwd decodeRow sql = withTop db $ run $ query (u, pwd) loginUserPasswd
     where
       loginUserPasswd = statement sql encode decode True
@@ -99,7 +99,7 @@ doLogin u pwd decodeRow sql = withTop db $ run $ query (u, pwd) loginUserPasswd
 
 doLogout
   :: Text
-  -> Handler App (AuthManager u App) ()
+  -> Handler App (AnyAuth u) ()
 doLogout t = withTop db $ do
   let tokenUuid = fromText t
   case tokenUuid of
@@ -115,24 +115,25 @@ doRecover
   :: Text
   -> (DE.Row UUID -> DE.Row u)
   -> ByteString
-  -> Handler App (AuthManager u App) (Either (Either Error AuthFailure) u)
+  -> Handler App (AnyAuth u) (Either (AuthFailure Error) u)
 doRecover t decodeRow sql = withTop db $ do
-    let tokenUuid = fromText t
-    case tokenUuid of
-     Nothing -> return $ Left $ Right AuthFailure
-     Just token -> do
-       usr <- run $ query token recoverSess
-       return $ either (Left . Left) (maybe (Left $ Right AuthFailure) Right) usr
-         where
-           recoverSess = statement sql encode decode True
-           encode = contramap id (EN.value EN.uuid)
-           decode = DE.maybeRow $ decodeRow (pure token)
+  let tokenUuid = fromText t
+  case tokenUuid of
+    Nothing -> return $ Left $ Login NoSession
+    Just token -> do
+      usr <- run $ query token recoverSess
+      return $ either (Left . UserError)
+        (maybe (Left $ Login SessionRecoverFail) Right) usr
+        where
+          recoverSess = statement sql encode decode True
+          encode = contramap id (EN.value EN.uuid)
+          decode = DE.maybeRow $ decodeRow (pure token)
 
 doPrepare
   :: HasUserID u
   => Maybe u
   -> Text
-  -> Handler App (AuthManager u App) (Either Error AuthID)
+  -> Handler App (AnyAuth u) (Either Error AuthID)
 doPrepare u p = withTop db $ run $ query (p, extractUid <$> u) stmt
   where
     stmt = statement sql encode decode True
@@ -142,7 +143,7 @@ doPrepare u p = withTop db $ run $ query (p, extractUid <$> u) stmt
 
 doCancelPrepare
   :: AuthID
-  -> Handler App (AuthManager u App) ()
+  -> Handler App (AnyAuth u) ()
 doCancelPrepare u = (withTop db $ run $ query u stmt) >> return ()
   where
     stmt = statement sql encode DE.unit True
@@ -153,7 +154,7 @@ doCreate
   :: Text
   -> AuthID
   -> DE.Result b
-  -> Handler App (AuthManager u App) (Either (Either Error CreateFailure) b)
+  -> Handler App (AnyAuth u) (Either (Either Error CreateFailure) b)
 doCreate u loginId decode = withTop db $ do
   email <- (fmap . fmap) decodeUtf8 $ getParam "email"
   usr <- run $ query (u, email, loginId) stmt
@@ -169,7 +170,7 @@ attach
   :: HasUserID u
   => u
   -> AuthID
-  -> Handler App (AuthManager u App) (Either Error ())
+  -> Handler App (AnyAuth u) (Either Error ())
 attach u i = withTop db $ run $ query (extractUid u, i) stmt
   where
     stmt = statement sql encode DE.unit True
@@ -237,7 +238,7 @@ instance IAuthBackend UserWithStats AuthID Error App where
 oauth2Login
   :: Provider
   -> Text
-  -> Handler App (AuthManager MyData App) (Either Error (Maybe MyData))
+  -> Handler App ApiAuth (Either Error (Maybe MyData))
 oauth2Login provider token = do
   withTop db $ run $ query (fromIntegral $ providerOpid provider, token) stmt
   where
@@ -248,6 +249,19 @@ oauth2Login provider token = do
           \uid in (select uid from moderator) as moderator, \
           \display_rows, display_columns, new_windows \
           \from auth_oauth2($1, $2) join users using (uid)"
+
+oauth2Check
+  :: Provider
+  -> Text
+  -> Handler App ApiAuth (Either Error (Maybe ByteString))
+oauth2Check provider token = do
+  withTop db $ run $ query (fromIntegral $ providerOpid provider, token) stmt
+  where
+    stmt = statement sql encode decode True
+    encode = contrazip2 (EN.value EN.int4) (EN.value EN.text)
+    decode = DE.maybeRow $ (toStrict . Data.Binary.encode <$> DE.value DE.int4)
+    sql = "select uid from login_method_oauth2 where \
+          \uid is not null and opid = $1 and identification = $2"
 
 instance UserData MyData where
   extractUser MyData{..} = AuthUser

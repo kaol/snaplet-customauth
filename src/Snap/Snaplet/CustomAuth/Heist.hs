@@ -20,7 +20,7 @@ import Snap.Snaplet.CustomAuth.User (currentUser)
 addAuthSplices
   :: UserData u
   => Snaplet (Heist b)
-  -> SnapletLens b (AuthManager u b)
+  -> SnapletLens b (AuthManager u e b)
   -> Initializer b v ()
 addAuthSplices h auth = addConfig h sc
   where
@@ -34,7 +34,7 @@ addAuthSplices h auth = addConfig h sc
 
 compiledAuthSplices
   :: UserData u
-  => SnapletLens b (AuthManager u b)
+  => SnapletLens b (AuthManager u e b)
   -> Splices (SnapletCSplice b)
 compiledAuthSplices auth = do
     "ifLoggedIn"   ## cIfLoggedIn auth
@@ -43,7 +43,7 @@ compiledAuthSplices auth = do
 
 ifLoggedIn
   :: UserData u
-  => SnapletLens b (AuthManager u b)
+  => SnapletLens b (AuthManager u e b)
   -> SnapletISplice b
 ifLoggedIn auth = do
   chk <- lift $ withTop auth isLoggedIn
@@ -54,7 +54,7 @@ ifLoggedIn auth = do
 
 cIfLoggedIn
   :: UserData u
-  => SnapletLens b (AuthManager u b)
+  => SnapletLens b (AuthManager u e b)
   -> SnapletCSplice b
 cIfLoggedIn auth = do
     cs <- C.runChildren
@@ -66,7 +66,7 @@ cIfLoggedIn auth = do
 
 ifLoggedOut
   :: UserData u
-  => SnapletLens b (AuthManager u b)
+  => SnapletLens b (AuthManager u e b)
   -> SnapletISplice b
 ifLoggedOut auth = do
     chk <- lift $ withTop auth isLoggedIn
@@ -76,7 +76,7 @@ ifLoggedOut auth = do
 
 cIfLoggedOut
   :: UserData u
-  => SnapletLens b (AuthManager u b)
+  => SnapletLens b (AuthManager u e b)
   -> SnapletCSplice b
 cIfLoggedOut auth = do
     cs <- C.runChildren
@@ -88,7 +88,7 @@ cIfLoggedOut auth = do
 
 loggedInUser
   :: UserData u
-  => SnapletLens b (AuthManager u b)
+  => SnapletLens b (AuthManager u e b)
   -> SnapletISplice b
 loggedInUser auth = do
     u <- lift $ withTop auth currentUser
@@ -96,7 +96,7 @@ loggedInUser auth = do
 
 cLoggedInUser
   :: UserData u
-  => SnapletLens b (AuthManager u b)
+  => SnapletLens b (AuthManager u e b)
   -> SnapletCSplice b
 cLoggedInUser auth =
     return $ C.yieldRuntimeText $ do

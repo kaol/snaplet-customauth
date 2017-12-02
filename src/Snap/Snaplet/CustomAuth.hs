@@ -2,13 +2,12 @@ module Snap.Snaplet.CustomAuth
   (
     AuthManager(..)
   , AuthUser(..)
-  , AuthFailure(..)
+  , AuthFailure(UserError, Create, Login)
+  , LoginFailure(..)
   , CreateFailure(..)
+  , PasswordFailure(..)
   , IAuthBackend(..)
   , UserData(..)
-  , OAuth2Settings(..)
-  , Provider
-  , parseProvider
   , defAuthSettings
   , authName
   , authUserField
@@ -20,20 +19,18 @@ module Snap.Snaplet.CustomAuth
   , recoverSession
   , combinedLoginRecover
   , currentUser
+  , getAuthFailData
   , authInit
     -- Heist
   , isLoggedIn
-  , addAuthSplices
   , compiledAuthSplices
   , ifLoggedIn
   , ifLoggedOut
   , loggedInUser
-  , addOAuth2Splices
   )
   where
 
 import Snap.Snaplet.CustomAuth.Handlers
-import Snap.Snaplet.CustomAuth.Handlers.OAuth2.Splices
 import Snap.Snaplet.CustomAuth.Heist
 import Snap.Snaplet.CustomAuth.Types
 import Snap.Snaplet.CustomAuth.AuthManager

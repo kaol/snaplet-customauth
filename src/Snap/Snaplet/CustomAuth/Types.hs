@@ -13,9 +13,15 @@ import Data.Text (Text)
 import Data.Time.Clock (UTCTime)
 import GHC.Generics (Generic)
 
-data AuthFailure =
-  AuthFailure | UsernameMissing | PasswordMissing
+data LoginFailure =
+  NoSession | SessionRecoverFail | UsernameMissing | PasswordMissing
   deriving (Show, Eq, Read)
+
+data AuthFailure e =
+    UserError e
+  | Login LoginFailure
+  | Create CreateFailure
+  | Action OAuth2ActionFailure
 
 data CreateFailure =
     MissingName | NameUsed | InvalidName
@@ -27,19 +33,15 @@ data CreateFailure =
 data OAuth2Failure =
     StateNotStored | StateNotReceived | ExpiredState | BadState
   | IdExtractionFailed | NoStoredToken
-  | AlreadyUser | AlreadyLoggedIn | OtherUser
+  | AlreadyUser | AlreadyLoggedIn
   | AttachNotLoggedIn | AlreadyAttached
   | ProviderError (Maybe Text)
   | AccessTokenFetchError
-  deriving (Show, Read)
-
-instance Eq OAuth2Failure where
-  (ProviderError _) == (ProviderError _) = True
-  a == b = (show a) == (show b)
+  deriving (Show, Read, Eq)
 
 data OAuth2ActionFailure =
   ActionTimeout | ActionDecodeError | ActionUserMismatch
-  deriving (Show, Eq)
+  deriving (Show, Eq, Read)
 
 data PasswordFailure = Missing | Mismatch
   deriving (Show, Eq, Read)

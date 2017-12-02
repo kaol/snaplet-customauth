@@ -8,7 +8,7 @@
 
 module Snap.Snaplet.CustomAuth.Handlers where
 
-import Control.Error.Util
+import Control.Error.Util hiding (err)
 import Control.Lens
 import Control.Monad.Trans
 import Control.Monad.Trans.Except
@@ -23,31 +23,38 @@ import Data.Map
 
 import Snap.Snaplet.CustomAuth.Types hiding (name)
 import Snap.Snaplet.CustomAuth.AuthManager
-import Snap.Snaplet.CustomAuth.Handlers.OAuth2
+import Snap.Snaplet.CustomAuth.OAuth2.Internal
 import Snap.Snaplet.CustomAuth.User (setUser, recoverSession, currentUser, getParamText)
+
+setFailure'
+  :: Handler b (AuthManager u e b) ()
+  -> AuthFailure e
+  -> Handler b (AuthManager u e b) ()
+setFailure' action err =
+  (modify $ \s -> s { authFailData = Just err }) >> action
 
 loginUser
   :: IAuthBackend u i e b
-  => (Either e AuthFailure -> Handler b (AuthManager u b) ())
-  -> Handler b (AuthManager u b) ()
-  -> Handler b (AuthManager u b) ()
+  => Handler b (AuthManager u e b) ()
+  -> Handler b (AuthManager u e b) ()
+  -> Handler b (AuthManager u e b) ()
 loginUser loginFail loginSucc = do
   usrName <- gets userField
   pwdName <- gets passwordField
   res <- runExceptT $ do
-    userName <- noteT (Right UsernameMissing) $ MaybeT $
+    userName <- noteT (Login UsernameMissing) $ MaybeT $
       (fmap . fmap) decodeUtf8 $ getParam usrName
-    passwd <- noteT (Right PasswordMissing) $ MaybeT $
+    passwd <- noteT (Login PasswordMissing) $ MaybeT $
       (fmap . fmap) decodeUtf8 $ getParam pwdName
-    usr <- withExceptT Left $ ExceptT $ login userName passwd
+    usr <- withExceptT UserError $ ExceptT $ login userName passwd
     lift $ maybe (return ()) setUser usr
     return usr
   modify $ \mgr -> mgr { activeUser = join $ hush res }
-  either loginFail (const loginSucc) res
+  either (setFailure' loginFail) (const loginSucc) res
 
 logoutUser
   :: IAuthBackend u i e b
-  => Handler b (AuthManager u b) ()
+  => Handler b (AuthManager u e b) ()
 logoutUser = do
   sesName <- gets sessionCookieName
   runMaybeT $ do
@@ -59,8 +66,8 @@ logoutUser = do
 -- present.
 combinedLoginRecover
   :: IAuthBackend u i e b
-  => (Either e AuthFailure -> Handler b (AuthManager u b) ())
-  -> Handler b (AuthManager u b) (Maybe u)
+  => Handler b (AuthManager u e b) ()
+  -> Handler b (AuthManager u e b) (Maybe u)
 combinedLoginRecover loginFail = do
   usr <- runMaybeT $ do
     lift recoverSession
@@ -78,20 +85,21 @@ combinedLoginRecover loginFail = do
 -- Account with password login
 createAccount
   :: IAuthBackend u i e b
-  => Handler b (AuthManager u b) (Either (Either e CreateFailure) u)
+  => Handler b (AuthManager u e b) (Either (Either e CreateFailure) u)
 createAccount = do
   usrName <- ("_new" <>) <$> gets userField
   pwdName <- ("_new" <>) <$> gets passwordField
   let pwdAgainName = pwdName <> "_again"
   usr <- runExceptT $ do
     name <- noteT (Right MissingName) $ MaybeT $
-            (fmap . fmap) decodeUtf8 $ getParam usrName
+            getParamText usrName
     passwd <- noteT (Right $ PasswordFailure Missing) $ MaybeT $
-              (hush . decodeUtf8' =<<) <$> getParam pwdName
+              getParamText pwdName
     when (T.null passwd) $ throwE (Right $ PasswordFailure Missing)
     noteT (Right $ PasswordFailure Mismatch) $ guard =<<
       (MaybeT $ (fmap . fmap) (== passwd) (getParamText pwdAgainName))
-    userId <- either (throwE . Left) return =<< (lift $ preparePasswordCreate Nothing passwd)
+    userId <- either (throwE . Left) return =<<
+      (lift $ preparePasswordCreate Nothing passwd)
     return (name, userId)
   res <- runExceptT $ do
     (name, userId) <- hoistEither usr
@@ -102,13 +110,14 @@ createAccount = do
   case (usr, res) of
     (Right i, Left _) -> cancelPrepare $ snd i
     _ -> return ()
+  either (setFailure' (return ()) . either UserError Create) (const $ return ()) res
   return res
 
 authInit
   :: IAuthBackend u i e b
   => Maybe (OAuth2Settings u i e b)
   -> AuthSettings
-  -> SnapletInit b (AuthManager u b)
+  -> SnapletInit b (AuthManager u e b)
 authInit oa s = makeSnaplet (view authName s) "Custom auth" Nothing $ do
   maybe (return ()) oauth2Init oa
   return $ AuthManager
@@ -118,7 +127,13 @@ authInit oa s = makeSnaplet (view authName s) "Custom auth" Nothing $ do
     , passwordField = s ^. authPasswordField
     , stateStore' = maybe (error "oauth2 hooks not defined") stateStore oa
     , getKey' = maybe (error "oauth2 hooks not defined") getKey oa
+    , oauth2Provider = Nothing
+    , authFailData = Nothing
     }
 
-isLoggedIn :: UserData u => Handler b (AuthManager u b) Bool
+isLoggedIn :: UserData u => Handler b (AuthManager u e b) Bool
 isLoggedIn = isJust <$> currentUser
+
+getAuthFailData
+  :: Handler b (AuthManager u e b) (Maybe (AuthFailure e))
+getAuthFailData = get >>= return . authFailData

@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Snap.Snaplet.CustomAuth.Handlers.OAuth2.Splices (addOAuth2Splices) where
+module Snap.Snaplet.CustomAuth.OAuth2.Splices (addOAuth2Splices) where
 
 import Control.Lens
 import Control.Monad.Trans
@@ -19,7 +19,7 @@ import Snap.Snaplet.CustomAuth.Util
 
 addOAuth2Splices
   :: Snaplet (Heist b)
-  -> SnapletLens b (AuthManager u b)
+  -> SnapletLens b (AuthManager u e b)
   -> Initializer b v ()
 addOAuth2Splices h auth = addConfig h sc
   where
@@ -30,7 +30,7 @@ addOAuth2Splices h auth = addConfig h sc
 
 spliceOAuth2Token
   :: Bool
-  -> SnapletLens b (AuthManager u b)
+  -> SnapletLens b (AuthManager u e b)
   -> SnapletCSplice b
 spliceOAuth2Token t auth = do
   cs <- runChildren

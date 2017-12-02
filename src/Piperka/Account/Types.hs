@@ -7,7 +7,7 @@ import Data.Int
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import qualified Hasql.Session as S
-import Snap.Snaplet.CustomAuth (Provider)
+import Snap.Snaplet.CustomAuth.OAuth2 (Provider)
 
 import Piperka.API.OAuth2.Types
 import Piperka.Listing.Types (ViewColumns(..))
@@ -25,8 +25,8 @@ data UserAccountSettings = UserAccountSettings
   } deriving (Show, Eq)
 
 data ProviderData = ProviderData
-  { label :: Text
-  , name :: Text
+  { name :: Text
+  , label :: Text
   , identification :: Maybe Text
   }
 

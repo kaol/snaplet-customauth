@@ -4,11 +4,12 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE TupleSections #-}
 
-module Snap.Snaplet.CustomAuth.Handlers.OAuth2
+module Snap.Snaplet.CustomAuth.OAuth2.Internal
   ( oauth2Init
   , attachProvider
   , saveAction
   , redirectToProvider
+  , getOAuth2Provider
   ) where
 
 import Control.Error.Util hiding (err)
@@ -44,12 +45,12 @@ import URI.ByteString.QQ
 import Snap.Snaplet.CustomAuth.AuthManager
 import Snap.Snaplet.CustomAuth.Types hiding (name)
 import Snap.Snaplet.CustomAuth.User (setUser, currentUser, recoverSession)
-import Snap.Snaplet.CustomAuth.Util (getStateName, getParamText)
+import Snap.Snaplet.CustomAuth.Util (getStateName, getParamText, setFailure)
 
 oauth2Init
   :: IAuthBackend u i e b
   => OAuth2Settings u i e b
-  -> Initializer b (AuthManager u b) ()
+  -> Initializer b (AuthManager u e b) ()
 oauth2Init s = do
   addRoutes
     [ ("oauth2createaccount/:provider", oauth2CreateAccount s)
@@ -57,7 +58,7 @@ oauth2Init s = do
     ]
 
 getProvider
-  :: Handler b (AuthManager u b) (Maybe Provider)
+  :: Handler b (AuthManager u e b) (Maybe Provider)
 getProvider = (parseProvider =<<) <$> getParam "provider"
 
 getRedirUrl
@@ -75,7 +76,7 @@ getRedirUrl p token o =
 
 redirectToProvider
   :: Provider
-  -> Handler b (AuthManager u b) ()
+  -> Handler b (AuthManager u e b) ()
 redirectToProvider provider = do
   store <- gets stateStore'
   key <- ($ provider) <$> gets getKey'
@@ -98,7 +99,7 @@ redirectToProvider provider = do
 buildOAuth2Param
   :: Provider
   -> (Text, Text)
-  -> Handler b (AuthManager u b) OAuth2
+  -> Handler b (AuthManager u e b) OAuth2
 buildOAuth2Param provider (clientId, clientSecret) = do
   -- TODO hostname
   root <- getSnapletRootURL
@@ -128,7 +129,7 @@ getUserInfo
   :: OAuth2Settings u i e b
   -> Provider
   -> AccessToken
-  -> Handler b (AuthManager u b) (Maybe Text)
+  -> Handler b (AuthManager u e b) (Maybe Text)
 getUserInfo s provider token = do
   let endpoint = (\(_, _, x) -> x) $ endpoints provider
   let mgr = httpManager s
@@ -148,14 +149,14 @@ getUserInfo s provider token = do
 oauth2Callback
   :: IAuthBackend u i e b
   => OAuth2Settings u i e b
-  -> Handler b (AuthManager u b) ()
+  -> Handler b (AuthManager u e b) ()
 oauth2Callback s = getProvider >>= maybe pass (oauth2Callback' s)
 
 oauth2Callback'
   :: IAuthBackend u i e b
   => OAuth2Settings u i e b
   -> Provider
-  -> Handler b (AuthManager u b) ()
+  -> Handler b (AuthManager u e b) ()
 oauth2Callback' s provider = do
   when (not $ provider `elem` (enabledProviders s)) pass
   name <- getStateName
@@ -184,7 +185,7 @@ oauth2Callback' s provider = do
       -- TODO: get user id (sub) from idToken in token, if
       -- available. Requires JWT handling.
       MaybeT $ lift $ getUserInfo s provider (accessToken token)
-  either ((oauth2Failure s) (Just provider) . Right . OAuth2Failure)
+  either (setFailure (oauth2Failure s) (Just provider) . Right . Create . OAuth2Failure)
     (oauth2Success s provider) res
 
 -- User has successfully completed OAuth2 login.  Get the stored
@@ -194,7 +195,7 @@ oauth2Success
   => OAuth2Settings u i e b
   -> Provider
   -> Text
-  -> Handler b (AuthManager u b) ()
+  -> Handler b (AuthManager u e b) ()
 oauth2Success s provider token = do
   key <- getActionKey provider
   store <- gets stateStore'
@@ -216,20 +217,21 @@ doOauth2Login
   => OAuth2Settings u i e b
   -> Provider
   -> Text
-  -> Handler b (AuthManager u b) ()
+  -> Handler b (AuthManager u e b) ()
 doOauth2Login s provider token =
   -- Sanity check: See if the user is already logged in.
   recoverSession >> currentUser >>=
-  maybe proceed (const $ (oauth2Failure s) (Just provider) $
-                 Right $ OAuth2Failure AlreadyLoggedIn)
+  maybe proceed (const $ setFailure (oauth2Failure s) (Just provider) $
+                 Right $ Create $ OAuth2Failure AlreadyLoggedIn)
   where
     proceed = do
       res <- runExceptT $ do
         usr <- ExceptT $ (oauth2Login s) provider token
-        lift $ setUser usr
+        maybe (return ()) (lift . setUser) usr
         return usr
-      modify $ \mgr -> mgr { activeUser = hush res }
-      either ((oauth2Failure s) (Just provider) . Left) (const $ oauth2LoginDone s) res
+      modify $ \mgr -> mgr { activeUser = join $ hush res }
+      either (setFailure (oauth2Failure s) (Just provider) . Left)
+        (const $ oauth2LoginDone s) res
 
 isExpiredStamp
   :: UTCTime
@@ -244,7 +246,7 @@ prepareOAuth2Create'
   => OAuth2Settings u i e b
   -> Provider
   -> Text
-  -> Handler b (AuthManager u b) (Either (Either e CreateFailure) i)
+  -> Handler b (AuthManager u e b) (Either (Either e CreateFailure) i)
 prepareOAuth2Create' s provider token =
   (prepareOAuth2Create s) provider token >>=
   either checkDuplicate (return . Right)
@@ -260,7 +262,7 @@ doResume
   -> Provider
   -> Text
   -> Text
-  -> Handler b (AuthManager u b) ()
+  -> Handler b (AuthManager u e b) ()
 doResume s provider token d = do
   recoverSession
   user <- currentUser
@@ -271,19 +273,18 @@ doResume s provider token d = do
       (hush $ Data.ByteString.Base64.decode $ encodeUtf8 d)
     u <- ExceptT $ return . either (Left . Left) Right =<<
       (oauth2Check s) provider token
-    u' <- lift $ maybe (return Nothing) (fmap Just . getUserId) u
     -- Compare current user with action's stored user
     when (userId == actionUser d') $
       throwE (Right ActionUserMismatch)
     -- Compare current user with identity owner
-    when (maybe False ((== userId) . Just) u') $
+    when (maybe False ((== userId) . Just) u) $
       throwE (Right ActionUserMismatch)
     expired <- liftIO $ isExpiredStamp (actionStamp d')
     when expired $ throwE (Right ActionTimeout)
     return $ savedAction d'
   let
-    attach = maybe ((oauth2Failure s) (Just provider)
-                    (Right (OAuth2Failure AttachNotLoggedIn))) attach' user
+    attach = maybe (setFailure (oauth2Failure s) (Just provider)
+                    (Right (Create $ OAuth2Failure AttachNotLoggedIn))) attach' user
     attach' u = do
       usr <- prepareOAuth2Create' s provider token
       res' <- runExceptT $ do
@@ -292,8 +293,9 @@ doResume s provider token d = do
       case (usr, res') of
         (Right i, Left _) -> cancelPrepare i
         _ -> return ()
-      either ((oauth2Failure s) (Just provider)) (const $ return ()) res'
-  either ((oauth2ActionFailure s) provider)
+      either (setFailure (oauth2Failure s) (Just provider) . fmap Create)
+        (const $ return ()) res'
+  either (setFailure (oauth2ActionFailure s) (Just provider) . fmap Action)
     (maybe attach ((resumeAction s) provider token)) res
 
 -- User has successfully signed in via oauth2 and the provider/token
@@ -302,7 +304,7 @@ doResume s provider token d = do
 oauth2CreateAccount
   :: IAuthBackend u i e b
   => OAuth2Settings u i e b
-  -> Handler b (AuthManager u b) ()
+  -> Handler b (AuthManager u e b) ()
 oauth2CreateAccount s = do
   store <- gets stateStore'
   usrName <- ((hush . decodeUtf8') =<<) <$>
@@ -332,11 +334,12 @@ oauth2CreateAccount s = do
   case (user, res) of
     (Right (i,_), Left _) -> cancelPrepare i
     _ -> return ()
-  either ((oauth2Failure s) provider) (const $ oauth2AccountCreated s) res
+  either (setFailure (oauth2Failure s) provider . fmap Create)
+    (const $ oauth2AccountCreated s) res
 
 getActionKey
   :: Provider
-  -> Handler b (AuthManager u b) Text
+  -> Handler b (AuthManager u e b) Text
 getActionKey p = do
   path <- maybe "auth" id . hush . decodeUtf8' <$> getSnapletRootURL
   name <- maybe "auth" id <$> getSnapletName
@@ -345,21 +348,21 @@ getActionKey p = do
 attachProvider
   :: IAuthBackend u i e b
   => Provider
-  -> Handler b (AuthManager u b) ()
+  -> Handler b (AuthManager u e b) ()
 attachProvider p = saveAction' p Nothing
 
 saveAction
   :: (IAuthBackend u i e b, Binary a)
   => Provider
   -> a
-  -> Handler b (AuthManager u b) ()
+  -> Handler b (AuthManager u e b) ()
 saveAction p d = saveAction' p $ Just $ toStrict $ Data.Binary.encode d
 
 saveAction'
   :: IAuthBackend u i e b
   => Provider
   -> Maybe ByteString
-  -> Handler b (AuthManager u b) ()
+  -> Handler b (AuthManager u e b) ()
 saveAction' provider d = do
   key <- getActionKey provider
   store <- gets $ stateStore'
@@ -375,3 +378,7 @@ saveAction' provider d = do
   withTop' store $ do
     setInSession key d'
     commitSession
+
+getOAuth2Provider
+  :: Handler b (AuthManager u e b) (Maybe Provider)
+getOAuth2Provider = get >>= return . oauth2Provider

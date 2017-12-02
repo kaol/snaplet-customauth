@@ -105,7 +105,7 @@
 		<h:haveAttachableProviders>
 		  <td>
 		    <h:hasIdentification check="False">
-		      <a href="/s/account?settings_type=attach_oauth2&provider=${h:name}" target="_blank" class="oauth2_add">Attach</a>
+		      <a href="/s/attachProvider/${h:name}" target="_blank" class="oauth2_add">Attach</a>
 		    </h:hasIdentification>
 		  </td>
 		</h:haveAttachableProviders>

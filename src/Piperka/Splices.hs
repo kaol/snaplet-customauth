@@ -16,15 +16,15 @@ import Data.DList (DList)
 import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
 import Snap
+import Control.Applicative ((<|>))
 import Data.Monoid
 import Control.Monad.Trans
-import Control.Monad.Trans.Except
 import Snap.Snaplet.CustomAuth
+import Snap.Snaplet.Heist (cRender)
 import Backend()
 import qualified Text.XmlHtml as X
 import Data.Map.Syntax
 import qualified Heist.Compiled.Extra as C
-import qualified Hasql.Session
 
 import Data.Maybe
 import Data.UUID
@@ -35,6 +35,7 @@ import Piperka.Account
 import Piperka.Action
 import Piperka.Action.Splices
 import Piperka.Action.Types
+import Piperka.Auth.Splices
 import Piperka.Splices.Account
 import Piperka.Splices.Flavor
 import Piperka.Splices.Revert
@@ -45,16 +46,8 @@ import Piperka.Messages
 import Piperka.Recover
 import Piperka.Util
 
-loginFailed :: forall b b1 v. b -> Handler App v b1
-loginFailed = const $ do
-  saveMessage "login failed"
-  redirect' "/" 303
-
-accountCreationFailed
-  :: C.Splice AppHandler
-  -> RuntimeAppHandler (Either Hasql.Session.Error CreateFailure)
-accountCreationFailed content n = do
-  withSplices content (accountCreateFailSplices <> nullStatsSplices) n
+loginFailed :: forall v. Handler App v ()
+loginFailed = withTop heist $ cRender "_loginFailed"
 
 piperkaSplices
   :: AppInit
@@ -77,54 +70,30 @@ renderContent
   :: AppInit
   -> [X.Node]
   -> RuntimeAppHandler (Maybe MyData)
-renderContent ini ns = C.withSplices (C.runNodeList ns) $ contentSplices' ini
-
-userMayCreate
-  :: ExceptT (Either Hasql.Session.Error CreateFailure) (RuntimeSplice AppHandler)
-     (Maybe UserWithStats)
-userMayCreate = do
-  p <- lift $ lift $ withTop auth $ combinedLoginRecover loginFailed
-  case p of
-   Just _ -> return p
-   Nothing -> do
-     isCreate <- lift $ lift $ (== (Just "Create account")) <$> getParam "action"
-     if isCreate
-       then (ExceptT $ lift $ withTop auth createAccount) >>=
-            (const $ lift $ lift $ redirect' "/welcome.html" 303)
-       else return Nothing
-
-getParamAttrBool
-  :: T.Text
-  -> HeistT AppHandler IO Bool
-getParamAttrBool n =
-  maybe False (read . T.unpack) . X.getAttribute n <$> getParamNode
+renderContent ini ns n = do
+  authContent <- deferMany (withSplices (callTemplate "_authFailure") authErrorSplices) $ do
+    err1 <- lift $ withTop auth $ getAuthFailData
+    err2 <- lift $ withTop apiAuth $ getAuthFailData
+    return $ err1 <|> err2
+  content <- withSplices (runNodeList ns) (contentSplices' ini) n
+  return $ authContent <> content
 
 renderPiperka
   :: AppInit
   -> C.Splice AppHandler
 renderPiperka ini = do
-  mayCreateUser <- getParamAttrBool "newUser"
   xs <- X.childNodes <$> getParamNode
   let userWithStats = lift $ withTop auth $ combinedLoginRecover loginFailed
   let getInner n = do
         content <- renderContent ini xs $ snd <$> n
         C.withSplices (C.callTemplate "_base")
           (contentSplices ini content) n
-      defaultInner = getInner $ return (Nothing, Nothing)
-      renderInner :: RuntimeAppHandler (Maybe (Maybe ActionError, Maybe Action), Maybe UserWithStats)
       renderInner n =
         let inner = getInner $ (\(a, u) -> (a, user <$> u)) <$> n
         in C.eitherDeferMap (return . note () . snd)
            (C.withSplices inner nullStatsSplices)
            (C.withSplices inner statsSplices) n
-  normal <- if mayCreateUser
-            then
-              (C.eitherDeferMap return (paramValueSplice . accountCreationFailed defaultInner)
-               (nullCreateSplice . renderInner))
-              `C.defer`
-              (runExceptT $ (lift . processAction) =<< userMayCreate)
-            else
-              renderInner `C.defer` (processAction =<< userWithStats)
+  normal <- renderInner `C.defer` (processAction =<< userWithStats)
   bare <- renderMinimal ini $ nullCreateSplice .
           (C.withSplices (C.runNodeList xs)
            ((contentSplices' ini) <> ("onlyWithStats" ## const $ return mempty)))
@@ -211,6 +180,7 @@ contentSplices' ini = do
     (maybe False moderator)
   "email" ## defer $ \n -> return $ yieldRuntimeText $
     maybe (return "") (lift . getUserEmail . uid) =<< n
+  "paramAttrs" ## const $ withLocalSplices mempty ("value" ## paramValue) runChildren
 
 loggedInSplices
   :: Splices (RuntimeAppHandler MyData)
@@ -260,3 +230,9 @@ renderExternA runtime = do
     C.codeGen (if (newExternWindows p)
                then externTpl
                else localTpl)
+
+paramValue
+  :: AttrSplice AppHandler
+paramValue n = do
+  t <- lift $ getParamText $ encodeUtf8 n
+  return $ maybe [] ((:[]) . ("value",) . HTML.text) t

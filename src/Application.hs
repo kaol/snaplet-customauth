@@ -13,6 +13,9 @@ module Application
   , RuntimeAppHandler
   , UserID
   , AuthID
+  , WebAuth
+  , ApiAuth
+  , AnyAuth
   , AppInit(..)
   , auth
   , apiAuth
@@ -33,13 +36,14 @@ import Piperka.Listing.Types (ViewColumns)
 import Control.Lens
 import Snap.Snaplet
 import Snap.Snaplet.Heist
-import Snap.Snaplet.CustomAuth hiding (httpManager)
+import Snap.Snaplet.CustomAuth
 import Snap.Snaplet.Hasql
 import Snap.Snaplet.Session
 import Data.Text as T
 import Data.Int
 import Data.UUID
 import Control.Monad.State
+import qualified Hasql.Session
 import Heist (RuntimeSplice)
 import Heist.Compiled (Splice)
 import Network.HTTP.Client (Manager)
@@ -89,10 +93,14 @@ instance HasPrefs (Maybe MyData) where
   getPrefs (Just u) = prefs u
   getPrefs Nothing = defaultUserPrefs
 
+type WebAuth = AuthManager UserWithStats Hasql.Session.Error App
+type ApiAuth = AuthManager MyData Hasql.Session.Error App
+type AnyAuth u = AuthManager u Hasql.Session.Error App
+
 data App = App
   { _heist :: Snaplet (Heist App)
-  , _auth :: Snaplet (AuthManager UserWithStats App)
-  , _apiAuth :: Snaplet (AuthManager MyData App)
+  , _auth :: Snaplet WebAuth
+  , _apiAuth :: Snaplet ApiAuth
   , _db :: Snaplet Hasql
   , _messages :: Snaplet SessionManager
   , _extlookup :: Int -> Text -> Maybe ExternalEntry
