@@ -66,8 +66,7 @@ checkPassword = statement sql encode (DE.singleRow $ DE.value DE.bool) True
   where
     encode = contrazip2 (EN.value EN.int4) (EN.value EN.text)
     sql = "SELECT (hash = crypt($2, hash)) AS pwmatch \
-          \FROM users JOIN user_login USING (uid) \
-          \JOIN login_method_passwd USING (lmid) WHERE uid=$1"
+          \FROM users JOIN login_method_passwd USING (uid) WHERE uid=$1"
 
 updateUnpriv
   :: UserID

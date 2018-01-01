@@ -74,9 +74,7 @@ renderContent ini ns n = do
     suppress <- lift $ withTop' id $ view suppressError
     if suppress then return Nothing else do
       err1 <- lift $ withTop auth $ getAuthFailData
-      liftIO $ print ("err1 " <> (show err1))
       err2 <- lift $ withTop apiAuth $ getAuthFailData
-      liftIO $ print ("err2 " <> (show err1))
       return $ err1 <|> err2
   content <- withSplices (runNodeList ns) (contentSplices' ini) n
   return $ authContent <> content

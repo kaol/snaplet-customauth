@@ -79,6 +79,8 @@ routes = do
     , ("newuser.html", authHandler False $
         mayCreateAccount $ cRender "newuser.html")
     , ("cinfo", authHandler True $ cRender "cinfo")
+    , ("", authHandler False $ cRender "index")
+    , ("index.html", authHandler False $ cRender "index")
     ]
 
 {-
