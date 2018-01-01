@@ -106,12 +106,9 @@ CREATE OR REPLACE FUNCTION must_have_login2() RETURNS trigger AS $$
 DECLARE
   n text;
 BEGIN
-  IF OLD.uid IS NULL THEN
-    RETURN NEW;
-  END IF;
-  IF NOT EXISTS (SELECT * FROM login_method AS lm WHERE OLD.uid = lm.uid AND OLD.lmid <> ul.lmid) THEN
+  IF OLD.uid IN (SELECT uid FROM users) AND NOT EXISTS (SELECT 1 FROM login_method AS lm WHERE OLD.uid = lm.uid AND OLD.lmid <> lm.lmid) THEN
     n := (SELECT name FROM users WHERE uid=OLD.uid);
-    RAISE EXCEPTION 'Account % with no login credentials', n USING ERRCODE = 'PI001';
+    RAISE EXCEPTION 'Account % with no login credentials %', n, old.uid USING ERRCODE = 'PI001';
     RETURN NULL;
   END IF;
   RETURN NEW;
@@ -120,6 +117,15 @@ $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER must_have_login2 AFTER DELETE ON login_method_passwd FOR EACH ROW EXECUTE PROCEDURE must_have_login2();
 CREATE TRIGGER must_have_login2 AFTER DELETE ON login_method_oauth2 FOR EACH ROW EXECUTE PROCEDURE must_have_login2();
+
+CREATE OR REPLACE FUNCTION prune_null_oauth2_login() RETURNS trigger AS $$
+BEGIN
+  DELETE FROM login_method_oauth2 WHERE uid IS NULL AND opid = NEW.opid AND identification = NEW.identification;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER prune_null_oauth2_login BEFORE INSERT ON login_method_oauth2 FOR EACH ROW EXECUTE PROCEDURE prune_null_oauth2_login();
 
 CREATE SEQUENCE lmid_seq;
 
@@ -158,18 +164,19 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION reset_user_password(name text, hash character(32), password text) RETURNS boolean AS $$
+<<func>>
 DECLARE
-  _uid integer;
+  uid integer;
 BEGIN
-  _uid := (SELECT users.uid FROM users JOIN pwdgen_hash USING (uid)
+  uid := (SELECT users.uid FROM users JOIN pwdgen_hash USING (uid)
        WHERE lower(users.name)=lower($1) AND pwdgen_hash.hash = $2
        AND pwdgen_hash.stamp > now() - ('1 day'::interval));
-  if _uid IS NULL THEN
+  IF uid IS NULL THEN
     RETURN FALSE;
   END IF;
-  DELETE FROM login_method_passwd WHERE login_method_passwd.uid=_uid);
-  SELECT NULL FROM auth_create_password($3, _uid);
-  DELETE FROM pwdgen_hash WHERE uid=_uid;
+  DELETE FROM login_method_passwd WHERE login_method_passwd.uid=func.uid;
+  PERFORM auth_create_password($3, uid);
+  DELETE FROM pwdgen_hash WHERE pwdgen_hash.uid=func.uid;
   RETURN TRUE;
 END;
 $$ LANGUAGE plpgsql;
@@ -180,6 +187,7 @@ BEGIN
     RAISE 'initial_lmid undefined for new user';
   END IF;
   UPDATE login_method SET uid=NEW.uid WHERE lmid=NEW.initial_lmid;
+  RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 

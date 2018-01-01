@@ -7,10 +7,20 @@
     <h:on err="PasswordMissing">
       Password missing.
     </h:on>
+    <h:on err="WrongPasswordOrUsername">
+      Wrong username or password.
+    </h:on>
+    <h:on err="SessionRecoverFail">
+      You had a session token defined but it didn't match with a
+      session on Piperka's end.
+    </h:on>
   </h:loginFailure>
   <h:createFailure>
     <h:on err="MissingName">
       Missing or invalid account name.
+    </h:on>
+    <h:on err="InvalidName">
+      Invalid account name.
     </h:on>
     <h:on err="NameUsed">
       Account name reserved.

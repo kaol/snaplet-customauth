@@ -89,22 +89,24 @@ sanitizeUserHTML txt =
 tryUpdate
   :: MyData
   -> AccountUpdate
-  -> AppHandler (Either AccountUpdateError MyData)
+  -> AppHandler (Either (Either AccountUpdateError NeedsValidation) MyData)
 tryUpdate usr a@(AccountUpdateUnpriv n r c) = let u = uid usr in
   updateUnpriv u a >>=
-  return . either (Left . AccountSqlError) (const $ Right $ usr {prefs = updatedPrefs})
+  return . either
+  (Left . Left . AccountSqlError)
+  (const $ Right $ usr {prefs = updatedPrefs})
   where
     updatedPrefs = (prefs usr) {newExternWindows = n, rows = r, columns = c}
 
 tryUpdate usr a@(AccountUpdatePriv _ _ _ _ _ _ _ _) = runExceptT $ do
   let u = uid usr
   ExceptT $ validatePriv u a
-  withExceptT AccountSqlError $ ExceptT $ tryUpdatePriv u a
+  withExceptT (Left . AccountSqlError) $ ExceptT $ tryUpdatePriv u a
   return usr
 
 accountUpdates
   :: MyData
-  -> AppHandler (Either AccountUpdateError MyData)
+  -> AppHandler (Either (Either AccountUpdateError NeedsValidation) MyData)
 accountUpdates usr = do
   params <- getParams
   update <- runMaybeT $ firstSuccess $ [

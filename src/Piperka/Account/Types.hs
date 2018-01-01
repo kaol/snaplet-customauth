@@ -9,7 +9,6 @@ import GHC.Generics (Generic)
 import qualified Hasql.Session as S
 import Snap.Snaplet.CustomAuth.OAuth2 (Provider)
 
-import Piperka.API.OAuth2.Types
 import Piperka.Listing.Types (ViewColumns(..))
 import Piperka.Profile.Types (Privacy(..))
 
@@ -20,6 +19,7 @@ data AccountData = AccountData
 
 data UserAccountSettings = UserAccountSettings
   { privacy :: Privacy
+  , hasPassword :: Bool
   , email :: Maybe Text
   , writeup :: Maybe Text
   } deriving (Show, Eq)
@@ -30,11 +30,12 @@ data ProviderData = ProviderData
   , identification :: Maybe Text
   }
 
+data NeedsValidation = NeedsValidation Provider AccountUpdate
+
 data AccountUpdateError = AccountSqlError S.Error
                         | AccountPasswordMissing
                         | AccountPasswordWrong
                         | AccountNewPasswordMismatch
-                        | NeedsValidation Provider
                         deriving (Eq)
 
 instance Enum AccountUpdateError where
@@ -42,13 +43,11 @@ instance Enum AccountUpdateError where
   fromEnum AccountPasswordMissing = 1
   fromEnum AccountPasswordWrong = 2
   fromEnum AccountNewPasswordMismatch = 3
-  fromEnum (NeedsValidation p) = 4 + (fromIntegral $ providerOpid p)
   toEnum 0 = AccountSqlError (S.ClientError Nothing)
   toEnum 1 = AccountPasswordMissing
   toEnum 2 = AccountPasswordWrong
   toEnum 3 = AccountNewPasswordMismatch
-  toEnum n = NeedsValidation (opidProvider $ fromIntegral n)
---  toEnum _ = error "AccountUpdateError"
+  toEnum _ = error "AccountUpdateError"
 
 instance Bounded AccountUpdateError where
   minBound = AccountSqlError (S.ClientError Nothing)

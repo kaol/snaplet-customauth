@@ -2,15 +2,19 @@
 
 module Piperka.OAuth2 (piperkaOAuth2) where
 
-import Data.Maybe (isJust)
+import Control.Lens (set)
+import Control.Monad.State
+import Data.Monoid
 import Data.Text (Text)
 import Hasql.Session (Error)
 import Network.HTTP.Client (Manager)
 import Snap
-import Snap.Snaplet.CustomAuth.OAuth2 (Provider(..), OAuth2Settings(..))
+import Snap.Snaplet.CustomAuth.OAuth2
+import Snap.Snaplet.Hasql (bracketDbOpen)
 import Snap.Snaplet.Heist
 import Snap.Snaplet.Session
 import Snap.Snaplet.CustomAuth
+import Snap.Snaplet.CustomAuth.User (setUser)
 
 import Application hiding (httpManager)
 import qualified Backend
@@ -26,18 +30,32 @@ piperkaOAuth2 s m = OAuth2Settings {
   , oauth2Check = Backend.oauth2Check
   , oauth2Login = Backend.oauth2Login
   , oauth2Failure = handleFailure
-  , oauth2ActionFailure = handleFailure
   , prepareOAuth2Create = prepareCreate
   , oauth2AccountCreated = accountCreated
   , oauth2LoginDone = loginDone
   , resumeAction = privUpdateConfirmed
   , stateStore = s
   , httpManager = m
+  , bracket = bracketDbOpen
   }
 
 handleFailure
-  :: Handler App ApiAuth ()
-handleFailure = withTop heist $ cRender "_oauth2Failure"
+  :: OAuth2Stage
+  -> Handler App ApiAuth ()
+handleFailure SCreate = do
+  failData <- withTop apiAuth getAuthFailData
+  liftIO $ print ("handlefailure SCreate " <> (show failData))
+  let retry = do
+        withTop' id $ modify $ set suppressError True
+        cRender "newUserSelectName_"
+  case failData of
+    Just (Create DuplicateName) -> retry
+    Just (Create InvalidName) -> retry
+    _ -> cRender "oauth2Failure_"
+handleFailure a = do
+  failData <- withTop apiAuth getAuthFailData
+  liftIO $ print ("handlefailure " <> (show a) <> " " <> (show failData))
+  cRender "oauth2Failure_"
 
 prepareCreate
   :: Provider
@@ -46,11 +64,15 @@ prepareCreate
 prepareCreate provider text = withTop db $ reserveOAuth2Identity provider text
 
 accountCreated
-  :: Handler App ApiAuth ()
-accountCreated = withTop heist $ cRender "_oauth2AccountCreated"
+  :: MyData
+  -> Handler App ApiAuth ()
+accountCreated usr = do
+  withTop auth $ setUser $ defaultUserStats usr
+  cRender "oauth2AccountCreated_"
 
 loginDone
   :: Handler App ApiAuth ()
 loginDone = do
   usr <- withTop apiAuth $ currentUser
-  redirect' (if isJust usr then "/updates.html" else "/") 303
+  liftIO $ print ("logindone " <> (show usr))
+  maybe (cRender "newUserSelectName_") (const $ redirect' "/updates.html" 303) usr

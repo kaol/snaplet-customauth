@@ -14,6 +14,7 @@ import Heist.Compiled.Extra ( checkedSplice
                             , stdConditionalSplice
                             , IndexedAction(..))
 import qualified HTMLEntities.Text as HTML
+import Text.XmlHtml
 
 import Application
 import Piperka.Account.Types
@@ -31,8 +32,7 @@ accountSplices n = mapV ($ n) $ do
     writeup . userAccount . fst . snd
   "haveRemovableProviders" ## runId isJust
   "haveAttachableProviders" ## runId isNothing
-  "oauth2Providers" ## deferMany (withSplices runChildren oauth2Splices) . fmap
-    (providers . fst . snd)
+  "oauth2Providers" ## renderProviders . fmap (providers . fst . snd)
   "hasError" ## mayDeferMap (return . fst) accountErrorSplice
 
 accountErrorSplice
@@ -46,7 +46,6 @@ accountErrorSplice = stdConditionalSplice accountError . (fmap (,()))
     accountError AccountPasswordMissing = ("passwordMissing", Simple)
     accountError AccountPasswordWrong = ("wrongPassword", Simple)
     accountError AccountNewPasswordMismatch = ("passwordMismatch", Simple)
-    accountError (NeedsValidation _) = ("needsValidation", Simple)
 
 accountAttrSplices
   :: RuntimeSplice AppHandler (UserAccountSettings, MyData)
@@ -55,6 +54,7 @@ accountAttrSplices n = mapV ($ n) $ do
   "value" ## valueSplice
   "columns" ## columnSplice . fmap (columns . prefs . snd)
   "privacy" ## privacySplice . fmap (privacy . fst)
+  "hasNoPassword" ## hasSplice . fmap (not . hasPassword . fst)
 
 valueSplice
   :: RuntimeSplice AppHandler (UserAccountSettings, MyData)
@@ -85,6 +85,22 @@ privacySplice n t = do
   userPriv <- n
   let priv = (intToPrivacy :: Int -> Privacy) $ read $ T.unpack t
   return $ if userPriv == priv then [("checked", "")] else []
+
+hasSplice
+  :: RuntimeSplice AppHandler Bool
+  -> Text
+  -> RuntimeSplice AppHandler [(Text, Text)]
+hasSplice n t = do
+  checkVal <- n
+  return $ if checkVal then [(t, "1")] else []
+
+renderProviders
+  :: RuntimeAppHandler [ProviderData]
+renderProviders n = do
+  filterOwn <- maybe False (read . T.unpack) . getAttribute "filter"
+               <$> getParamNode
+  manyWithSplices runChildren oauth2Splices $
+    (if filterOwn then filter (isJust . identification) else id) <$> n
 
 oauth2Splices
   :: Splices (RuntimeSplice AppHandler ProviderData -> Splice AppHandler)

@@ -4,6 +4,7 @@ module Snap.Snaplet.CustomAuth.OAuth2
   , AuthFailure(Action)
   , OAuth2Failure(..)
   , Provider(..)
+  , OAuth2Stage(..)
   , parseProvider
   , addOAuth2Splices
   , oauth2Init

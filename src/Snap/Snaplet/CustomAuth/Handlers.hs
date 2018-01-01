@@ -24,7 +24,8 @@ import Data.Map
 import Snap.Snaplet.CustomAuth.Types hiding (name)
 import Snap.Snaplet.CustomAuth.AuthManager
 import Snap.Snaplet.CustomAuth.OAuth2.Internal
-import Snap.Snaplet.CustomAuth.User (setUser, recoverSession, currentUser, getParamText)
+import Snap.Snaplet.CustomAuth.User (setUser, recoverSession, currentUser, isSessionDefined)
+import Snap.Snaplet.CustomAuth.Util (getParamText)
 
 setFailure'
   :: Handler b (AuthManager u e b) ()
@@ -48,8 +49,8 @@ loginUser loginFail loginSucc = do
       (fmap . fmap) decodeUtf8 $ getParam pwdName
     usr <- withExceptT UserError $ ExceptT $ login userName passwd
     lift $ maybe (return ()) setUser usr
-    return usr
-  modify $ \mgr -> mgr { activeUser = join $ hush res }
+    hoistEither $ note (Login WrongPasswordOrUsername) usr
+  modify $ \mgr -> mgr { activeUser = hush res }
   either (setFailure' loginFail) (const loginSucc) res
 
 logoutUser
@@ -69,10 +70,14 @@ combinedLoginRecover
   => Handler b (AuthManager u e b) ()
   -> Handler b (AuthManager u e b) (Maybe u)
 combinedLoginRecover loginFail = do
+  sesActive <- isSessionDefined
   usr <- runMaybeT $ do
+    guard sesActive
     lift recoverSession
     MaybeT currentUser
-  maybe combinedLogin (return . Just) usr
+  err <- gets authFailData
+  maybe (maybe combinedLogin (return . Just) usr)
+    (const $ loginFail >> return Nothing) err
     where
       combinedLogin = runMaybeT $ do
         usrName <- gets userField
@@ -136,3 +141,7 @@ isLoggedIn = isJust <$> currentUser
 getAuthFailData
   :: Handler b (AuthManager u e b) (Maybe (AuthFailure e))
 getAuthFailData = get >>= return . authFailData
+
+resetAuthFailData
+  :: Handler b (AuthManager u e b) ()
+resetAuthFailData = modify $ \mgr -> mgr { authFailData = Nothing }

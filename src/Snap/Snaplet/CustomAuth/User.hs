@@ -1,17 +1,16 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Snap.Snaplet.CustomAuth.User (setUser, currentUser, recoverSession, getParamText) where
+module Snap.Snaplet.CustomAuth.User where
 
 import Control.Error.Util
 import Control.Monad.State
-import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
+import Data.Maybe
 import Data.Text.Encoding
 import Snap
 
 import Snap.Snaplet.CustomAuth.Types (AuthUser(..))
 import Snap.Snaplet.CustomAuth.AuthManager
-import Snap.Snaplet.CustomAuth.Util
 
 setUser
   :: UserData u
@@ -29,13 +28,27 @@ currentUser = do
   u <- get
   return $ activeUser u
 
+setFailure'
+  :: AuthFailure e
+  -> Handler b (AuthManager u e b) ()
+setFailure' failure = modify $ \mgr -> mgr { authFailData = Just failure }
+
 recoverSession
   :: IAuthBackend u i e b
   => Handler b (AuthManager u e b) ()
 recoverSession = do
   sesName <- gets sessionCookieName
+  let quit e = do
+        ses <- getCookie sesName
+        maybe (return ()) expireCookie ses
+        setFailure' e
   usr <- runMaybeT $ do
-    ses <- MaybeT $ getCookie sesName
--- TODO
-    hushT $ ExceptT $ recover (decodeUtf8 $ cookieValue ses)
-  modify $ \mgr -> mgr { activeUser = usr }
+    val <- MaybeT $ ((hush . decodeUtf8' . cookieValue =<<) <$> getCookie sesName)
+    lift $ recover val
+  modify $ \mgr -> mgr { activeUser = join $ hush <$> usr }
+  maybe (return ()) (either quit (const $ return ())) usr
+
+-- Just check if the session cookie is defined
+isSessionDefined
+  :: Handler b (AuthManager u e b) Bool
+isSessionDefined = gets sessionCookieName >>= getCookie >>= return . isJust

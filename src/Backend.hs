@@ -12,14 +12,17 @@ import Piperka.Listing.Types
 
 import Contravariant.Extras.Contrazip
 import Control.Applicative
+import Control.Monad (when)
+import Control.Monad.Trans
+import Control.Monad.Trans.Except
 import qualified Data.Binary
 import Data.ByteString (ByteString)
 import Data.ByteString.Lazy (toStrict)
+import Data.Char (isSpace)
 import Data.Functor.Contravariant
 import Data.Monoid
 import qualified Data.Text as T
 import Data.Text (Text)
-import Data.Text.Encoding
 import Data.UUID
 import Snap
 import Snap.Snaplet.CustomAuth
@@ -33,7 +36,7 @@ import qualified Hasql.Decoders as DE
 import PostgreSQL.ErrorCodes (unique_violation)
 
 import Piperka.API.OAuth2.Types
-import Piperka.Util (monadicTuple2)
+import Piperka.Util (monadicTuple2, getParamText)
 
 encodeLoginPasswd :: EN.Params (T.Text, T.Text)
 encodeLoginPasswd =
@@ -77,12 +80,12 @@ userDefaultRow n =
   <*> pure n
   <*> DE.value DE.uuid
   <*> DE.value DE.uuid
-  <*> DE.value DE.bool
+  <*> pure False
   <*> pure defaultUserPrefs
 
 statsDefaultRow :: Text -> DE.Row UserWithStats
 statsDefaultRow n =
-  UserWithStats 0 (0,0) Nothing
+  defaultUserStats
   <$> userDefaultRow n
 
 doLogin
@@ -150,15 +153,24 @@ doCancelPrepare u = (withTop db $ run $ query u stmt) >> return ()
     encode = EN.value EN.int4
     sql = "delete from login_method where lmid=$1"
 
+validName
+  :: Text
+  -> Bool
+validName name = len > 1 && len < 40 && isTrimmed
+  where
+    len = T.length name
+    isTrimmed = not (isSpace (T.head name) || isSpace (T.last name))
+
 doCreate
   :: Text
   -> AuthID
   -> DE.Result b
   -> Handler App (AnyAuth u) (Either (Either Error CreateFailure) b)
-doCreate u loginId decode = withTop db $ do
-  email <- (fmap . fmap) decodeUtf8 $ getParam "email"
-  usr <- run $ query (u, email, loginId) stmt
-  return $ either (Left . maybeDuplicate) Right usr
+doCreate u loginId decode = withTop db $ runExceptT $ do
+  email <- lift $ getParamText "email"
+  when (not $ validName u) $ throwE $ Right InvalidName
+  usr <- lift $ run $ query (u, email, loginId) stmt
+  either (throwE . maybeDuplicate) return usr
     where
       stmt = statement sql encode decode True
       encode = contrazip3 (EN.value EN.text) (EN.nullableValue EN.text) (EN.value EN.int4)
@@ -240,6 +252,7 @@ oauth2Login
   -> Text
   -> Handler App ApiAuth (Either Error (Maybe MyData))
 oauth2Login provider token = do
+  liftIO $ print ("oauth2login " <> (show provider) <> " " <> (show token))
   withTop db $ run $ query (fromIntegral $ providerOpid provider, token) stmt
   where
     stmt = statement sql encode decode True
@@ -255,6 +268,7 @@ oauth2Check
   -> Text
   -> Handler App ApiAuth (Either Error (Maybe ByteString))
 oauth2Check provider token = do
+  liftIO $ print ("oauth2check " <> (show provider) <> " " <> (show token))
   withTop db $ run $ query (fromIntegral $ providerOpid provider, token) stmt
   where
     stmt = statement sql encode decode True

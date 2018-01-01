@@ -46,13 +46,16 @@ getAccountSettings u = runExceptT $ do
     encode = EN.value EN.int4
     decode1 = UserAccountSettings
               <$> (liftA intToPrivacy $ DE.value DE.int4)
+              <*> DE.value DE.bool
               <*> DE.nullableValue DE.text
               <*> DE.nullableValue DE.text
     decode2 = ProviderData
               <$> DE.value DE.text
               <*> DE.value DE.text
               <*> DE.nullableValue DE.text
-    sql1 = "SELECT privacy, email, writeup FROM users WHERE uid=$1"
+    sql1 = "SELECT privacy, \
+           \uid IN (SELECT uid FROM login_method_passwd WHERE uid IS NOT NULL), \
+           \email, writeup FROM users WHERE uid=$1"
     sql2 = "SELECT name, display_name, identification FROM oauth2_provider LEFT JOIN \
            \(SELECT identification, opid FROM login_method_oauth2 WHERE uid=$1) AS x \
            \USING (opid) ORDER BY display_name"
@@ -142,19 +145,20 @@ validateToken u p t = run $ query (u, p, t) stmt
 validatePriv
   :: UserID
   -> AccountUpdate
-  -> AppHandler (Either AccountUpdateError ())
+  -> AppHandler (Either (Either AccountUpdateError NeedsValidation) ())
 validatePriv u a = runExceptT $ do
   let pwChange = maybe False (not . T.null) $ newPassword a
       pwMismatch = let n = newPassword a
                        n' = newPasswordRetype a
                    in n /= n'
   case (validation a, pwChange && pwMismatch) of
-    (_, True) -> throwE $ AccountNewPasswordMismatch
-    (OAuth2 provider, _) -> throwE $ NeedsValidation provider
+    (_, True) -> throwE $ Left AccountNewPasswordMismatch
+    (OAuth2 provider, _) -> throwE $ Right $ NeedsValidation provider a
     (Password p, _) ->
-      if T.null p then throwE AccountPasswordMissing else do
-        pwOk <- withExceptT AccountSqlError $ ExceptT $ run $ query (u, p) checkPassword
-        if pwOk then return () else throwE AccountPasswordWrong
+      if T.null p then throwE $ Left AccountPasswordMissing else do
+        pwOk <- withExceptT (Left . AccountSqlError) $
+          ExceptT $ run $ query (u, p) checkPassword
+        if pwOk then return () else throwE $ Left AccountPasswordWrong
 
 tryUpdatePriv
   :: UserID

@@ -20,7 +20,7 @@
 
   <body>
     <div id="header" class="hiliteBG">
-      <a href="./">
+      <a href="/">
 	<img id="paprikat" src="/images/paprika.png" alt="Piperka">
       </a>
       <h1 style="margin-left:10%">Piperka</h1>
@@ -30,26 +30,26 @@
       <div class="sidebar hiliteBG">
 	<div class="control">
 	  <p>
-	    <a href="about.html">About this site</a>
+	    <a href="/about.html">About this site</a>
 	    <br/><a href="/blog/">Blog</a>
-	    <br/><a href="top.html">Most popular</a>
-	    <br/><a href="submit.html">Submit a comic</a>
-	    <br/><a href="browse.html">Browse comics</a><h:newLink> (<a h:href=""><h:new/> new</a>)</h:newLink>
+	    <br/><a href="/top.html">Most popular</a>
+	    <br/><a href="/submit.html">Submit a comic</a>
+	    <br/><a href="/browse.html">Browse comics</a><h:newLink> (<a h:href=""><h:new/> new</a>)</h:newLink>
 	    <h:ifLoggedIn>
 	      <p>You are logged in as <a href="${h:profileLink}"><h:loggedInUser/></a></p>
-	      <a href="updates.html">Check updates</a> <h:unreadStats/>
-	      <br/><a href="account.html">Your account</a>
+	      <a href="/updates.html">Check updates</a> <h:unreadStats/>
+	      <br/><a href="/account.html">Your account</a>
 	      <br/><a href="/?action=logout&csrf_ham=${h:csrf}">Logout</a>
 	      <h:ifMod>
 		<hr/>
-		<a href="moderate.html">Moderate</a>
+		<a href="/moderate.html">Moderate</a>
 		<h:modStats>
 		  <h:haveModCount>(<h:modCount/>)</h:haveModCount>
 		</h:modStats>
 	      </h:ifMod>
 	    </h:ifLoggedIn>
 	    <h:ifLoggedOut>
-	      <form method="post" action="updates.html" style="padding-bottom:10px">
+	      <form method="post" action="/updates.html" style="padding-bottom:10px">
 		<p>User:
 		  <br/><input class="login" type="text" name="_login" maxlength="40" style="width:140px"/>
 		  <br/>Password:<br/>
@@ -57,8 +57,8 @@
 		  <input id="loginsubmit" type="submit" name="action" value="Login"/>
 		</p>
 	      </form>
-	      <br/><a href="newuser.html">Create account</a>
-	      <br/><a href="lost.html">Lost password?</a>
+	      <br/><a href="/newuser.html">Create account</a>
+	      <br/><a href="/lost.html">Lost password?</a>
 	    </h:ifLoggedOut>
 	  </p>
 	</div>
@@ -78,7 +78,7 @@
 	  <h:bookmark>
 	    <h:success>
 	      Bookmark
-	      for <a href="info.html?cid=${h:cid}"><h:title/></a> set
+	      for <a href="/info.html?cid=${h:cid}"><h:title/></a> set
 	      on <h:newest>newest page</h:newest><h:notNewest>page
 	      <h:ord/></h:notNewest>.
 	    </h:success>
@@ -87,7 +87,7 @@
 	      <p>
 		<ul>
 		  <h:item>
-		    <li><a href="info.html?cid=${h:cid}"><h:title/></a></li>
+		    <li><a href="/info.html?cid=${h:cid}"><h:title/></a></li>
 		  </h:item>
 		</ul>
 	    </h:multiple>
@@ -95,7 +95,7 @@
 	      <h3>Failed to set bookmark</h3>
 	      <p>
 		Looks like the URL you submitted might be for
-		<a href="info.html?cid=${h:cid}"><h:title/></a> but it
+		<a href="/info.html?cid=${h:cid}"><h:title/></a> but it
 		failed to match with any page.  The error has been
 		logged.
 	      </p>
@@ -131,17 +131,17 @@
 		<logout>log out</logout>
 		<bookmark>
 		  set bookmark
-		  for <a href="info.html?cid=${h:cid}"><h:title/></a>
+		  for <a href="/info.html?cid=${h:cid}"><h:title/></a>
 		  on <h:newest>newest page</h:newest>
 		  <h:notNewest>page<h:ord/></h:notNewest>.
 		</bookmark>
 		<subscribe>
 		  subscribe
-		  to <a href="info.html?cid=${h:cid}"><h:title/></a>
+		  to <a href="/info.html?cid=${h:cid}"><h:title/></a>
 		</subscribe>
 		<unsubscribe>
 		  unsubscribe
-		  from <a href="info.html?cid=${h:cid}"><h:title/></a>
+		  from <a href="/info.html?cid=${h:cid}"><h:title/></a>
 		</unsubscribe>
 		<revert>
 		  revert updates

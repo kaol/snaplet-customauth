@@ -20,7 +20,9 @@ module Snap.Snaplet.CustomAuth
   , combinedLoginRecover
   , currentUser
   , getAuthFailData
+  , resetAuthFailData
   , authInit
+  , isSessionDefined
     -- Heist
   , isLoggedIn
   , compiledAuthSplices

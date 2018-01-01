@@ -1,16 +1,13 @@
 module Piperka.Action.Query where
 
-import Control.Monad.Trans
 import Data.ByteString (ByteString)
 import Data.Int
 import Data.Text (Text)
 import Data.Vector (Vector)
 import Hasql.Session hiding (run)
-import Heist
-import Snap.Snaplet
-import Snap.Snaplet.Hasql
+import Snap.Snaplet.Hasql (run)
 
-import Application (db, AppHandler)
+import Application (AppHandler)
 import Piperka.Action.Statements
 import Piperka.Action.Types
 
@@ -19,45 +16,45 @@ getBookmark
   -> Bool
   -> ByteString
   -> Maybe Int32
-  -> RuntimeSplice AppHandler (Either Error Action)
+  -> AppHandler (Either Error Action)
 getBookmark url wantHere ip uid =
   (fmap Bookmark) <$>
-  (lift $ withTop db $ run $ query (url, wantHere, ip, uid) bookmarkAndLogFetch)
+  (run $ query (url, wantHere, ip, uid) bookmarkAndLogFetch)
 
 setBookmark
   :: Int32
   -> Int32
   -> Int32
   -> Int32
-  -> RuntimeSplice AppHandler (Either Error (Int32, Int32))
+  -> AppHandler (Either Error (Int32, Int32))
 setBookmark uid cid ord subord =
-  lift $ withTop db $ run $ query (uid, cid, ord, subord) bookmarkSet
+  run $ query (uid, cid, ord, subord) bookmarkSet
 
 subscribe
   :: Int32
   -> Int32
   -> Bool
-  -> RuntimeSplice AppHandler (Either Error (Int32, Int32))
+  -> AppHandler (Either Error (Int32, Int32))
 subscribe uid cid startAtFirst =
-  lift $ withTop db $ run $ query (uid, cid, startAtFirst) subscribeSet
+  run $ query (uid, cid, startAtFirst) subscribeSet
 
 unsubscribe
   :: Int32
   -> Int32
-  -> RuntimeSplice AppHandler (Either Error (Int32, Int32))
+  -> AppHandler (Either Error (Int32, Int32))
 unsubscribe uid cid =
-  lift $ withTop db $ run $ query (uid, cid) unsubscribeSet
+  run $ query (uid, cid) unsubscribeSet
 
 revertUpdates
   :: Int32
   -> Vector Int32
-  -> RuntimeSplice AppHandler (Either Error (Int32, Int32))
+  -> AppHandler (Either Error (Int32, Int32))
 revertUpdates uid cids =
-  lift $ withTop db $ run $ query (uid, cids) revertUpdatesSet
+  run $ query (uid, cids) revertUpdatesSet
 
 getTitle
   :: Integral n
   => n
-  -> RuntimeSplice AppHandler (Either Error (Maybe Text))
+  -> AppHandler (Either Error (Maybe Text))
 getTitle cid =
-  lift $ withTop db $ run $ query (fromIntegral cid) titleFetch
+  run $ query (fromIntegral cid) titleFetch

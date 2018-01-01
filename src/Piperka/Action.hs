@@ -20,7 +20,6 @@ import Data.Text.Encoding (decodeUtf8)
 import qualified Data.Vector as V
 import Data.UUID (toASCIIBytes)
 import qualified Hasql.Session
-import Heist
 import Prelude hiding (lookup)
 import Snap
 import Snap.Snaplet.CustomAuth.Handlers (logoutUser)
@@ -30,14 +29,13 @@ import Backend ()
 import qualified Application as A
 import Piperka.Action.Types
 import Piperka.Action.Query
-import Piperka.Util (maybeParseInt, if', maybeParseInt)
+import Piperka.Util (maybeParseInt, if')
 
 processAction
   :: Maybe UserWithStats
-  -> (RuntimeSplice AppHandler
-      (Maybe (Maybe ActionError, Maybe Action), Maybe UserWithStats))
+  -> AppHandler (Maybe (Maybe ActionError, Maybe Action), Maybe UserWithStats)
 processAction usr = do
-  rq <- lift getRequest
+  rq <- getRequest
   let params = rqParams rq
   let uid = A.uid . user <$> usr
   action <- extractAction rq params uid
@@ -58,8 +56,7 @@ extractAction
   :: Request
   -> Params
   -> Maybe Int32
-  -> (RuntimeSplice AppHandler
-      (Maybe (Either Hasql.Session.Error Action)))
+  -> AppHandler (Maybe (Either Hasql.Session.Error Action))
 extractAction rq params uid = do
   act <- runExceptT $ sequence_ [ extractSubscribe
                                 , extractUnsubscribe
@@ -109,9 +106,9 @@ perform
   -> Bool
   -> UserWithStats
   -> Int32
-  -> ExceptT ActionError (RuntimeSplice AppHandler) (Maybe UserWithStats)
+  -> ExceptT ActionError AppHandler (Maybe UserWithStats)
 perform Logout True _ _ = do
-  lift $ lift $ withTop auth logoutUser
+  lift $ withTop auth logoutUser
   return Nothing
 
 perform (Bookmark [(cid, _, Just (ord, subord, _))]) True usr uid =
@@ -135,15 +132,15 @@ perform _ False _ _ = hoistEither $ Left CsrfFail
 -- Get the comic title.  If it fails, give another error
 csrfFailWithComic
   :: Int
-  -> ExceptT ActionError (RuntimeSplice AppHandler) (Maybe UserWithStats)
+  -> ExceptT ActionError AppHandler (Maybe UserWithStats)
 csrfFailWithComic cid = do
   title <- either (throwE . SqlError) return =<< (lift $ getTitle cid)
   hoistEither $ Left $ maybe UnknownAction CsrfFailWithComic title
 
 performSql
   :: UserWithStats
-  -> RuntimeSplice AppHandler (Either Hasql.Session.Error (Int32, Int32))
-  -> ExceptT ActionError (RuntimeSplice AppHandler) (Maybe UserWithStats)
+  -> AppHandler (Either Hasql.Session.Error (Int32, Int32))
+  -> ExceptT ActionError AppHandler (Maybe UserWithStats)
 performSql usr act =
   either (\x -> throwE $ SqlError x) (return . Just) =<<
   (lift $ runExceptT $ do

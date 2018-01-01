@@ -59,9 +59,9 @@
 	  <p>
 	    Authenticate changes with
 	    <select name="authenticate_with" id="authenticate_with">
-	      <option value="Password" h:hasPassword="1">Password</option>
-	      <h:oauth2Providers>
-		<option value="${h:label}" h:selected="1"/>
+	      <option value="Password" h:hasNoPassword="disabled">Password</option>
+	      <h:oauth2Providers filter="True">
+		<option value="${h:name}"><h:label/></option>
 	      </h:oauth2Providers>
 	    </select>
 	  <p>
@@ -70,13 +70,13 @@
 	  <h3>Manage password</h3>
 	  <p>
 	    <label for="only_oauth2">Passwordless mode, use only OAuth2 for login </label>
-	    <input type="checkbox" name="only_oauth2" h:checkedOnlyOAuth2="1" id="only_oauth2"/>
+	    <input type="checkbox" name="only_oauth2" h:hasNoPassword="checked" id="only_oauth2"/>
 	  </p>
 	  <p>
-	    New password: <input type="password" name="new_passwd" h:disabledOnlyOauth2="1"/>
+	    New password: <input type="password" name="new_passwd" h:hasNoPassword="disabled"/>
 	  </p>
 	  <p>
-	    Retype new password: <input type="password" name="new_passwd_retype" h:disabledOnlyOauth2="1"/>
+	    Retype new password: <input type="password" name="new_passwd_retype" h:hasNoPassword="disabled"/>
 	  </p>
 	  <h3>OAuth2 logins</h3>
 	  OAuth2 is used solely for fetching a unique user ID from the provider.

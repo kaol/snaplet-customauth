@@ -1,13 +1,18 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
-module Piperka.Account (renderAccountForm, getUserEmail, mayCreateAccount) where
+module Piperka.Account (renderAccountForm, accountUpdateHandler, getUserEmail) where
 
 import Control.Lens
-import Control.Monad.Trans
+import Control.Monad.State
 import Heist.Compiled
-import Heist.Compiled.Extra ( eitherDeferMap )
+import Snap
+import Snap.Snaplet.CustomAuth
+import Snap.Snaplet.CustomAuth.User (setUser)
+import Snap.Snaplet.CustomAuth.OAuth2
 
 import Application
+import Backend ()
+import Heist.Compiled.Extra ( eitherDeferMap )
 import Piperka.Account.Action
 import Piperka.Account.Splices
 import Piperka.Account.Types
@@ -23,12 +28,20 @@ renderAccountForm =
           (accountAttrSplices $ (over _1 userAccount . snd) <$> n') runChildren)
   where
     act usr = do
-      upd <- lift $ accountUpdates usr
+      err <- lift $ withTop' id $ view accountUpdateError
+      let upd :: Either AccountUpdateError MyData = maybe (Right usr) Left err
       accs <- lift $ getAccountSettings $ uid usr
       return $ accs >>= \a -> Right $
         either (\e -> (Just e, (a, usr))) (\u' -> (Nothing, (a, u'))) upd
 
-mayCreateAccount
+accountUpdateHandler
   :: AppHandler ()
-mayCreateAccount = do
-  return () -- TODO
+accountUpdateHandler = do
+  full <- maybe pass return =<< withTop auth currentUser
+  let usr = user full
+  upd <- accountUpdates usr
+  case upd of
+    Left (Right (NeedsValidation p a)) ->
+      withTop apiAuth $ (saveAction p a >> redirectToProvider p >> return ())
+    Left (Left e) -> modify $ set accountUpdateError $ Just e
+    Right u -> withTop auth (setUser $ full {user = u})

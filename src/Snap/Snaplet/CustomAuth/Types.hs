@@ -14,7 +14,7 @@ import Data.Time.Clock (UTCTime)
 import GHC.Generics (Generic)
 
 data LoginFailure =
-  NoSession | SessionRecoverFail | UsernameMissing | PasswordMissing
+  NoSession | SessionRecoverFail | UsernameMissing | PasswordMissing | WrongPasswordOrUsername
   deriving (Show, Eq, Read)
 
 data AuthFailure e =
@@ -22,6 +22,7 @@ data AuthFailure e =
   | Login LoginFailure
   | Create CreateFailure
   | Action OAuth2ActionFailure
+  deriving (Show)
 
 data CreateFailure =
     MissingName | NameUsed | InvalidName
@@ -44,6 +45,9 @@ data OAuth2ActionFailure =
   deriving (Show, Eq, Read)
 
 data PasswordFailure = Missing | Mismatch
+  deriving (Show, Eq, Read)
+
+data OAuth2Stage = SCallback | SLogin | SCreate | SAttach | SAction
   deriving (Show, Eq, Read)
 
 data Provider =

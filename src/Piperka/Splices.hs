@@ -12,6 +12,7 @@ module Piperka.Splices
 import Heist
 import Heist.Compiled as C
 import Control.Error.Util (note)
+import Control.Lens
 import Data.DList (DList)
 import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
@@ -20,7 +21,6 @@ import Control.Applicative ((<|>))
 import Data.Monoid
 import Control.Monad.Trans
 import Snap.Snaplet.CustomAuth
-import Snap.Snaplet.Heist (cRender)
 import Backend()
 import qualified Text.XmlHtml as X
 import Data.Map.Syntax
@@ -32,12 +32,14 @@ import qualified HTMLEntities.Text as HTML
 
 import Application
 import Piperka.Account
-import Piperka.Action
 import Piperka.Action.Splices
 import Piperka.Action.Types
+import Piperka.Auth (currentUserPlain)
 import Piperka.Auth.Splices
+import Piperka.OAuth2.Splices
 import Piperka.Splices.Account
 import Piperka.Splices.Flavor
+import Piperka.Splices.Providers
 import Piperka.Splices.Revert
 import Piperka.Submit.Splices
 import Piperka.Listing.Render
@@ -45,9 +47,6 @@ import Piperka.ComicInfo.Splices
 import Piperka.Messages
 import Piperka.Recover
 import Piperka.Util
-
-loginFailed :: forall v. Handler App v ()
-loginFailed = withTop heist $ cRender "_loginFailed"
 
 piperkaSplices
   :: AppInit
@@ -64,7 +63,7 @@ renderMinimal
   -> C.Splice AppHandler
 renderMinimal ini action =
   (\n -> withSplices (action n) (contentSplices' ini) n) `C.defer`
-  (lift $ withTop apiAuth $ combinedLoginRecover loginFailed)
+  (lift currentUserPlain)
 
 renderContent
   :: AppInit
@@ -72,9 +71,13 @@ renderContent
   -> RuntimeAppHandler (Maybe MyData)
 renderContent ini ns n = do
   authContent <- deferMany (withSplices (callTemplate "_authFailure") authErrorSplices) $ do
-    err1 <- lift $ withTop auth $ getAuthFailData
-    err2 <- lift $ withTop apiAuth $ getAuthFailData
-    return $ err1 <|> err2
+    suppress <- lift $ withTop' id $ view suppressError
+    if suppress then return Nothing else do
+      err1 <- lift $ withTop auth $ getAuthFailData
+      liftIO $ print ("err1 " <> (show err1))
+      err2 <- lift $ withTop apiAuth $ getAuthFailData
+      liftIO $ print ("err2 " <> (show err1))
+      return $ err1 <|> err2
   content <- withSplices (runNodeList ns) (contentSplices' ini) n
   return $ authContent <> content
 
@@ -83,7 +86,6 @@ renderPiperka
   -> C.Splice AppHandler
 renderPiperka ini = do
   xs <- X.childNodes <$> getParamNode
-  let userWithStats = lift $ withTop auth $ combinedLoginRecover loginFailed
   let getInner n = do
         content <- renderContent ini xs $ snd <$> n
         C.withSplices (C.callTemplate "_base")
@@ -93,12 +95,15 @@ renderPiperka ini = do
         in C.eitherDeferMap (return . note () . snd)
            (C.withSplices inner nullStatsSplices)
            (C.withSplices inner statsSplices) n
-  normal <- renderInner `C.defer` (processAction =<< userWithStats)
+  normal <- (renderInner `C.defer`) $ do
+    u <- lift $ withTop auth currentUser
+    a <- lift $ withTop' id $ view actionResult
+    return (a, u)
   bare <- renderMinimal ini $ nullCreateSplice .
           (C.withSplices (C.runNodeList xs)
            ((contentSplices' ini) <> ("onlyWithStats" ## const $ return mempty)))
   return $ yieldRuntime $ do
-    useMinimal <- lift $ isJust <$> getParam "minimal"
+    useMinimal <- lift $ withTop' id $ view minimal
     codeGen $ if useMinimal then bare else normal
 
 statsSplices
@@ -181,6 +186,8 @@ contentSplices' ini = do
   "email" ## defer $ \n -> return $ yieldRuntimeText $
     maybe (return "") (lift . getUserEmail . uid) =<< n
   "paramAttrs" ## const $ withLocalSplices mempty ("value" ## paramValue) runChildren
+  "providers" ## renderProviders
+  "oauth2Create" ## renderOAuth2
 
 loggedInSplices
   :: Splices (RuntimeAppHandler MyData)

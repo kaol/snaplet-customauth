@@ -25,7 +25,12 @@ module Application
   , taglookup
   , extlookup
   , httpManager
+  , suppressError
+  , minimal
+  , accountUpdateError
+  , actionResult
   , defaultUserPrefs
+  , defaultUserStats
   , getPrefs
   ) where
 
@@ -48,6 +53,8 @@ import Heist (RuntimeSplice)
 import Heist.Compiled (Splice)
 import Network.HTTP.Client (Manager)
 
+import Piperka.Account.Types (AccountUpdateError)
+import Piperka.Action.Types
 import Piperka.ComicInfo.Types
 import Piperka.Listing.Types (ViewColumns(..))
 ------------------------------------------------------------------------------
@@ -106,6 +113,11 @@ data App = App
   , _extlookup :: Int -> Text -> Maybe ExternalEntry
   , _taglookup :: [Int] -> [ComicTag]
   , _httpManager :: Manager
+  -- Used when there's a template specific way of presenting an error.
+  , _suppressError :: Bool
+  , _minimal :: Bool
+  , _accountUpdateError :: Maybe AccountUpdateError
+  , _actionResult :: Maybe (Maybe ActionError, Maybe Action)
   }
 
 data AppInit = AppInit
@@ -120,16 +132,15 @@ defaultUserPrefs = UserPrefs
   , newExternWindows = False
   }
 
+defaultUserStats :: MyData -> UserWithStats
+defaultUserStats = UserWithStats 0 (0, 0) Nothing
+
 makeLenses ''App
 
 instance HasHeist App where
   heistLens = subSnaplet heist
 
-instance HasHasql (Handler b App) where
-  getHasqlState = with db get
-  setHasqlState = with db . put
-
-instance HasHasql (Handler App Hasql) where
+instance HasHasql (Handler App v) where
   getHasqlState = withTop db get
   setHasqlState s = withTop db $ put s
 

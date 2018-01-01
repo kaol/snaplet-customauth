@@ -53,12 +53,12 @@ data OAuth2Settings u i e b = IAuthBackend u i e b => OAuth2Settings {
     enabledProviders :: [Provider]
   , oauth2Check :: Provider -> Text -> Handler b (AuthManager u e b) (Either e (Maybe ByteString))
   , oauth2Login :: Provider -> Text -> Handler b (AuthManager u e b) (Either e (Maybe u))
-  , oauth2Failure :: Handler b (AuthManager u e b) ()
-  , oauth2ActionFailure :: Handler b (AuthManager u e b) ()
+  , oauth2Failure :: OAuth2Stage -> Handler b (AuthManager u e b) ()
   , prepareOAuth2Create :: Provider -> Text -> Handler b (AuthManager u e b) (Either e i)
-  , oauth2AccountCreated :: Handler b (AuthManager u e b) ()
+  , oauth2AccountCreated :: u -> Handler b (AuthManager u e b) ()
   , oauth2LoginDone :: Handler b (AuthManager u e b) ()
   , resumeAction :: Provider -> Text -> ByteString -> Handler b (AuthManager u e b) ()
   , stateStore :: SnapletLens (Snaplet b) SessionManager
   , httpManager :: Manager
+  , bracket :: Handler b (AuthManager u e b) () -> Handler b (AuthManager u e b) ()
   }

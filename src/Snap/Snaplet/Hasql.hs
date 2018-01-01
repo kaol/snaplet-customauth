@@ -54,7 +54,7 @@ addRoutesDbOpen :: (HasHasql (Handler b v)) =>
                    [(ByteString, Handler b v ())] -> Initializer b v ()
 addRoutesDbOpen = addRoutes . over (mapped._2) bracketDbOpen
 
-bracketDbOpen :: (HasHasql (Handler b v)) => Handler b v () -> Handler b v ()
+bracketDbOpen :: (HasHasql (Handler b v)) => Handler b v a -> Handler b v a
 bracketDbOpen site = do
   s' <- getHasqlState
   case s' of
@@ -67,5 +67,6 @@ bracketDbOpen site = do
       maybe (return ()) (\c -> S.run commit c >> C.release c)
     workSite s ref = do
       setHasqlState (HasqlConnection ref s)
-      site
+      x <- site
       setHasqlState (HasqlSettings s)
+      return x

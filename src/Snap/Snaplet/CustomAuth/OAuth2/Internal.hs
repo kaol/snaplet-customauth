@@ -13,6 +13,7 @@ module Snap.Snaplet.CustomAuth.OAuth2.Internal
   ) where
 
 import Control.Error.Util hiding (err)
+import Control.Lens
 import Control.Monad.Except
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
@@ -53,14 +54,30 @@ oauth2Init
   => OAuth2Settings u i e b
   -> Initializer b (AuthManager u e b) ()
 oauth2Init s = do
-  addRoutes
-    [ ("oauth2createaccount/:provider", oauth2CreateAccount s)
+  addRoutes $ mapped._2 %~ (bracket s) $
+    [ ("oauth2createaccount", oauth2CreateAccount s)
     , ("oauth2callback/:provider", oauth2Callback s)
+    , ("oauth2login/:provider", redirectLogin s)
     ]
 
 getProvider
   :: Handler b (AuthManager u e b) (Maybe Provider)
 getProvider = (parseProvider =<<) <$> getParam "provider"
+
+redirectLogin
+  :: OAuth2Settings u i e b
+  -> Handler b (AuthManager u e b) ()
+redirectLogin s = do
+  provider <- ((\x -> do
+                   p <- parseProvider x
+                   guard $ p `elem` (enabledProviders s)
+                   return p) =<<) <$>
+              getParam "provider"
+  maybe pass toProvider provider
+  where
+    toProvider p = do
+      success <- redirectToProvider p
+      if success then return () else pass
 
 getRedirUrl
   :: Provider
@@ -118,7 +135,7 @@ buildOAuth2Param provider = do
     s <- lookupProvider ".secret"
     let callback = URI (Scheme "http")
                    (Just $ Authority Nothing (Host hostname) Nothing)
-                   (root <> "/oauth2callback/" <> (C8.pack $ show provider)) mempty Nothing
+                   ("/" <> root <> "/oauth2callback/" <> (C8.pack $ show provider)) mempty Nothing
         (endpoint1, endpoint2, _) = endpoints provider
     return $ OAuth2
       { oauthClientId = k
@@ -198,7 +215,8 @@ oauth2Callback' s provider = do
       -- TODO: get user id (sub) from idToken in token, if
       -- available. Requires JWT handling.
       MaybeT $ lift $ getUserInfo s provider (accessToken token)
-  either (setFailure (oauth2Failure s) (Just provider) . Right . Create . OAuth2Failure)
+  either (setFailure ((oauth2Failure s) SCallback) (Just provider) .
+          Right . Create . OAuth2Failure)
     (oauth2Success s provider) res
 
 -- User has successfully completed OAuth2 login.  Get the stored
@@ -231,11 +249,12 @@ doOauth2Login
   -> Provider
   -> Text
   -> Handler b (AuthManager u e b) ()
-doOauth2Login s provider token =
+doOauth2Login s provider token = do
   -- Sanity check: See if the user is already logged in.
-  recoverSession >> currentUser >>=
-  maybe proceed (const $ setFailure (oauth2Failure s) (Just provider) $
-                 Right $ Create $ OAuth2Failure AlreadyLoggedIn)
+  recoverSession
+  currentUser >>=
+    maybe proceed (const $ setFailure ((oauth2Failure s) SLogin) (Just provider) $
+                   Right $ Create $ OAuth2Failure AlreadyLoggedIn)
   where
     proceed = do
       res <- runExceptT $ do
@@ -243,7 +262,7 @@ doOauth2Login s provider token =
         maybe (return ()) (lift . setUser) usr
         return usr
       modify $ \mgr -> mgr { activeUser = join $ hush res }
-      either (setFailure (oauth2Failure s) (Just provider) . Left)
+      either (setFailure ((oauth2Failure s) SLogin) (Just provider) . Left)
         (const $ oauth2LoginDone s) res
 
 isExpiredStamp
@@ -296,7 +315,7 @@ doResume s provider token d = do
     when expired $ throwE (Right ActionTimeout)
     return $ savedAction d'
   let
-    attach = maybe (setFailure (oauth2Failure s) (Just provider)
+    attach = maybe (setFailure ((oauth2Failure s) SAttach) (Just provider)
                     (Right (Create $ OAuth2Failure AttachNotLoggedIn))) attach' user
     attach' u = do
       usr <- prepareOAuth2Create' s provider token
@@ -306,9 +325,9 @@ doResume s provider token d = do
       case (usr, res') of
         (Right i, Left _) -> cancelPrepare i
         _ -> return ()
-      either (setFailure (oauth2Failure s) (Just provider) . fmap Create)
+      either (setFailure ((oauth2Failure s) SAttach) (Just provider) . fmap Create)
         (const $ return ()) res'
-  either (setFailure (oauth2ActionFailure s) (Just provider) . fmap Action)
+  either (setFailure ((oauth2Failure s) SAction) (Just provider) . fmap Action)
     (maybe attach ((resumeAction s) provider token)) res
 
 -- User has successfully signed in via oauth2 and the provider/token
@@ -347,8 +366,8 @@ oauth2CreateAccount s = do
   case (user, res) of
     (Right (i,_), Left _) -> cancelPrepare i
     _ -> return ()
-  either (setFailure (oauth2Failure s) provider . fmap Create)
-    (const $ oauth2AccountCreated s) res
+  either (setFailure ((oauth2Failure s) SCreate) provider . fmap Create)
+    (oauth2AccountCreated s) res
 
 getActionKey
   :: Provider
