@@ -8,10 +8,12 @@ import Data.Maybe (isJust)
 import Data.IORef
 import Snap
 import Snap.Snaplet.CustomAuth
+import Snap.Snaplet.CustomAuth.User (setUser)
 import Snap.Snaplet.Heist
 
 import Application
 import Backend ()
+import Piperka.Action
 
 authHandler
   :: Bool
@@ -24,7 +26,11 @@ authHandler alwaysMinimal action = do
   modify $ set minimal useMinimal
   case useMinimal of
     True -> (withTop apiAuth $ combinedLoginRecover loginFailed) >> return ()
-    False -> (withTop auth $ combinedLoginRecover loginFailed) >> return ()
+    False -> (withTop auth (combinedLoginRecover loginFailed)) >>
+      withTop auth currentUser >>= processAction >>=
+      (\(act, usr) -> do
+          modify $ set actionResult act
+          maybe (return ()) (withTop auth . setUser) usr)
   isFailed <- liftIO $ readIORef failed
   if isFailed then cRender "loginFailed_" else action
 
