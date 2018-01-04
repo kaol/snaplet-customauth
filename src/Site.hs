@@ -27,6 +27,7 @@ import           Heist
 ------------------------------------------------------------------------------
 import           Application
 --import Backend
+import Snap.Core (ifTop)
 import           Snap.Snaplet.CustomAuth
 import           Snap.Snaplet.Hasql
 import           Piperka.Splices
@@ -79,7 +80,7 @@ routes = do
     , ("newuser.html", authHandler False $
         mayCreateAccount $ cRender "newuser.html")
     , ("cinfo", authHandler True $ cRender "cinfo")
-    , ("", authHandler False $ cRender "index")
+    , ("", ifTop $ authHandler False $ cRender "index")
     , ("index.html", authHandler False $ cRender "index")
     ]
 
