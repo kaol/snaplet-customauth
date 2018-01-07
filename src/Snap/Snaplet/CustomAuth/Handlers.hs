@@ -50,7 +50,6 @@ loginUser loginFail loginSucc = do
     usr <- withExceptT UserError $ ExceptT $ login userName passwd
     lift $ maybe (return ()) setUser usr
     hoistEither $ note (Login WrongPasswordOrUsername) usr
-  modify $ \mgr -> mgr { activeUser = hush res }
   either (setFailure' loginFail) (const loginSucc) res
 
 logoutUser
@@ -111,7 +110,6 @@ createAccount = do
     u <- ExceptT $ create name userId
     lift $ setUser u
     return u
-  modify $ \mgr -> mgr { activeUser = hush res }
   case (usr, res) of
     (Right i, Left _) -> cancelPrepare $ snd i
     _ -> return ()

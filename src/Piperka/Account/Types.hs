@@ -76,7 +76,7 @@ data AccountUpdate = AccountUpdateUnpriv
 instance Binary AccountUpdate
 instance Binary OAuth2Change
 
-data ValidateMethod = Password Text | OAuth2 Provider
+data ValidateMethod = Password Text | OAuth2 Provider | Trusted
   deriving (Show, Eq, Generic)
 
 instance Binary ValidateMethod

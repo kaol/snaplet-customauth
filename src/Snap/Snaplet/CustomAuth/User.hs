@@ -22,6 +22,7 @@ setUser usr = do
   -- TODO
   let wafer = Cookie sesName (encodeUtf8 $ session udata) Nothing Nothing (Just "/") False False
   modifyResponse $ addResponseCookie wafer
+  modify $ \mgr -> mgr { activeUser = Just usr }
 
 currentUser :: UserData u => Handler b (AuthManager u e b) (Maybe u)
 currentUser = do

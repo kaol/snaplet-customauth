@@ -41,7 +41,10 @@ accountUpdateHandler = do
   let usr = user full
   upd <- accountUpdates usr
   case upd of
-    Left (Right (NeedsValidation p a)) ->
-      withTop apiAuth $ (saveAction p a >> redirectToProvider p >> return ())
+    Left (Right (NeedsValidation p a)) -> withTop apiAuth $ do
+      setUser usr
+      saveAction p a
+      redirectToProvider p
+      return ()
     Left (Left e) -> modify $ set accountUpdateError $ Just e
     Right u -> withTop auth (setUser $ full {user = u})

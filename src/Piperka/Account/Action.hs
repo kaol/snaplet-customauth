@@ -115,7 +115,7 @@ accountUpdates usr = do
     , MaybeT $ withTop messages $ runMaybeT $ do
         saved <- encodeUtf8 <$> (MaybeT $ getFromSession "p_priv")
         lift $ deleteFromSession "p_priv" >> commitSession
-        MaybeT . return $ (\(_,_,x) -> x) <$>
+        MaybeT . return $ (\(_,_,x) -> x { validation = Trusted }) <$>
           (hush . decodeOrFail . fromStrict =<< (hush $ Data.ByteString.Base64.decode saved))
     ]
   maybe (return $ Right usr) (tryUpdate usr) update

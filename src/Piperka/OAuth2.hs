@@ -18,6 +18,7 @@ import Snap.Snaplet.CustomAuth.User (setUser)
 
 import Application hiding (httpManager)
 import qualified Backend
+import Piperka.Auth
 import Piperka.Account.Action (privUpdateConfirmed)
 import Piperka.OAuth2.Query
 
@@ -51,8 +52,8 @@ handleFailure SCreate = do
   case failData of
     Just (Create DuplicateName) -> retry
     Just (Create InvalidName) -> retry
-    _ -> cRender "oauth2Failure_"
-handleFailure a = do
+    _ -> withTop' id $ authHandler False $ cRender "oauth2Failure_"
+handleFailure a = withTop' id $ authHandler False $ do
   failData <- withTop apiAuth getAuthFailData
   liftIO $ print ("handlefailure " <> (show a) <> " " <> (show failData))
   cRender "oauth2Failure_"

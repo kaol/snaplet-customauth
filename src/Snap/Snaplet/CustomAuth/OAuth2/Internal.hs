@@ -261,7 +261,6 @@ doOauth2Login s provider token = do
         usr <- ExceptT $ (oauth2Login s) provider token
         maybe (return ()) (lift . setUser) usr
         return usr
-      modify $ \mgr -> mgr { activeUser = join $ hush res }
       either (setFailure ((oauth2Failure s) SLogin) (Just provider) . Left)
         (const $ oauth2LoginDone s) res
 
@@ -306,10 +305,10 @@ doResume s provider token d = do
     u <- ExceptT $ return . either (Left . Left) Right =<<
       (oauth2Check s) provider token
     -- Compare current user with action's stored user
-    when (userId == actionUser d') $
-      throwE (Right ActionUserMismatch)
+    when (userId /= actionUser d') $
+     throwE (Right ActionUserMismatch)
     -- Compare current user with identity owner
-    when (maybe False ((== userId) . Just) u) $
+    when (maybe True ((/= userId) . Just) u) $
       throwE (Right ActionUserMismatch)
     expired <- liftIO $ isExpiredStamp (actionStamp d')
     when expired $ throwE (Right ActionTimeout)
@@ -362,7 +361,6 @@ oauth2CreateAccount s = do
     usr <- ExceptT $ create userName i
     lift $ setUser usr
     return usr
-  modify $ \mgr -> mgr { activeUser = hush res }
   case (user, res) of
     (Right (i,_), Left _) -> cancelPrepare i
     _ -> return ()
@@ -400,13 +398,14 @@ saveAction' provider d = do
   store <- gets $ stateStore'
   stamp <- liftIO $ getCurrentTime
   i <- runMaybeT $ lift . getUserId =<< MaybeT currentUser
-  let d' = decodeLatin1 $ Data.ByteString.Base64.encode $
-        toStrict . Data.Binary.encode $ SavedAction {
+  let payload = SavedAction {
           actionProvider = provider
         , actionStamp = stamp
         , actionUser = i
         , savedAction = d
         }
+  let d' = decodeLatin1 $ Data.ByteString.Base64.encode $
+        toStrict . Data.Binary.encode $ payload
   withTop' store $ do
     setInSession key d'
     commitSession

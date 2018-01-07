@@ -158,6 +158,7 @@ validatePriv u a = runExceptT $ do
         pwOk <- withExceptT (Left . AccountSqlError) $
           ExceptT $ run $ query (u, p) checkPassword
         if pwOk then return () else throwE $ Left AccountPasswordWrong
+    (Trusted, _) -> return ()
 
 tryUpdatePriv
   :: UserID
