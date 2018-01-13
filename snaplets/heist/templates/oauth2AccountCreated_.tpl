@@ -1,6 +1,6 @@
 <h:piperka>
   <h2>Welcome to Piperka</h2>
   <p>
-    You have an account
+    TODO: Write a new user page
   </p>
 </h:piperka>

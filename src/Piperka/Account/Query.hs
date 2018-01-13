@@ -83,7 +83,7 @@ updateUnpriv u a = run $ query (u, a) stmt
 
 
 updatePriv
-  :: Query (UserID, AccountUpdate) ()
+  :: Query (UserID, PrivData) ()
 updatePriv = statement sql encode DE.unit True
   where
     scrub = (=<<) (\x -> if T.null x then Nothing else Just x)
@@ -94,7 +94,7 @@ updatePriv = statement sql encode DE.unit True
     sql = "UPDATE users SET email=$2, privacy=$3, writeup=$4 WHERE uid=$1"
 
 updatePassword
-  :: Query (UserID, AccountUpdate) ()
+  :: Query (UserID, PrivData) ()
 updatePassword = statement sql encode DE.unit True
   where
     encode = contrazip2 (EN.value EN.int4)
@@ -124,7 +124,7 @@ deleteOAuth2Login = statement sql encode DE.unit True
     encode = contrazip2 (EN.value EN.int4)
       (EN.value (map (fromIntegral . providerOpid) >$<
                  (EN.array $ EN.arrayDimension foldl $ EN.arrayValue EN.int4)))
-    sql = "DELETE FROM login_method_oauth2 WHERE uid=$1 AND opid in $2"
+    sql = "DELETE FROM login_method_oauth2 WHERE uid=$1 AND opid = ANY ($2 :: int[])"
 
 validateToken
   :: UserID
@@ -143,14 +143,17 @@ validateToken u p t = run $ query (u, p, t) stmt
 
 validatePriv
   :: UserID
-  -> AccountUpdate
+  -> PrivData
+  -> ValidateMethod
   -> AppHandler (Either (Either AccountUpdateError NeedsValidation) ())
-validatePriv u a = runExceptT $ do
-  let pwChange = maybe False (not . T.null) $ newPassword a
-      pwMismatch = let n = newPassword a
-                       n' = newPasswordRetype a
-                   in n /= n'
-  case (validation a, pwChange && pwMismatch) of
+validatePriv u a val = runExceptT $ do
+  let pwFail = case a of
+        (UpdateAccount n n' _ _ _ _ _) -> let
+          pwChange = maybe False (not . T.null) n
+          pwMismatch = n /= n'
+          in pwChange && pwMismatch
+        _ -> False
+  case (val, pwFail) of
     (_, True) -> throwE $ Left AccountNewPasswordMismatch
     (OAuth2 provider, _) -> throwE $ Right $ NeedsValidation provider a
     (Password p, _) ->
@@ -162,11 +165,11 @@ validatePriv u a = runExceptT $ do
 
 tryUpdatePriv
   :: UserID
-  -> AccountUpdate
+  -> PrivData
   -> AppHandler (Either Error ())
-tryUpdatePriv u a = run $ query (u, a) stmt
+tryUpdatePriv u a@(UpdateAccount _ _ _ _ _ _ _) = run $ query (u, a) stmt
   where
-    stmt :: Query (UserID, AccountUpdate) ()
+    stmt :: Query (UserID, PrivData) ()
     stmt = proc params -> do
       let (usr, ac) = params
       if passwordless ac then deletePassword -< usr else let pw = newPassword ac in
@@ -176,6 +179,16 @@ tryUpdatePriv u a = run $ query (u, a) stmt
         then deleteOAuth2Login -< (usr, oauth2Removes ac)
         else returnA -< ()
       updatePriv -< params
+
+tryUpdatePriv u (AttachProvider provider token) =
+  run $ query (u, providerOpid provider, token) stmt
+  where
+    stmt :: Query (UserID, AuthID, Text) ()
+    stmt = statement sql encode (DE.unit) True
+    encode = contrazip3 (EN.value EN.int4)
+      (EN.value EN.int4) (EN.value EN.text)
+    sql = "INSERT INTO login_method_oauth2 \
+          \(opid, identification, uid) VALUES ($2, $3, $1)"
 
 getUserEmail
   :: UserID

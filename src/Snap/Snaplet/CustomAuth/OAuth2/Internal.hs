@@ -6,7 +6,6 @@
 
 module Snap.Snaplet.CustomAuth.OAuth2.Internal
   ( oauth2Init
-  , attachProvider
   , saveAction
   , redirectToProvider
   , getOAuth2Provider
@@ -22,14 +21,13 @@ import Data.Aeson
 import qualified Data.Binary
 import Data.Binary (Binary)
 import Data.Binary.Orphans ()
-import Data.ByteString (ByteString)
 import qualified Data.ByteString.Base64
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Lazy (toStrict, fromStrict)
 import Data.Char (chr)
 import qualified Data.Configurator
 import Data.HashMap.Lazy (HashMap, lookup)
-import Data.Maybe (isJust)
+import Data.Maybe (isJust, isNothing)
 import Data.Monoid
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -91,6 +89,7 @@ getRedirUrl p token o =
     scopeLoc = case p of
       Google -> "profile"
       Reddit -> "identity"
+      Github -> "read:user"
 
 redirectToProvider
   :: Provider
@@ -154,6 +153,9 @@ endpoints Google = ( [uri|https://accounts.google.com/o/oauth2/auth|]
 endpoints Reddit = ( [uri|https://www.reddit.com/api/v1/authorize|]
                    , [uri|https://www.reddit.com/api/v1/access_token|]
                    , [uri|https://oauth.reddit.com/api/v1/me|])
+endpoints Github = ( [uri|https://github.com/login/oauth/authorize|]
+                   , [uri|https://github.com/login/oauth/access_token|]
+                   , [uri|https://api.github.com/user|])
 
 getUserInfo
   :: OAuth2Settings u i e b
@@ -175,6 +177,7 @@ getUserInfo s provider token = do
     maybeText _ = Nothing
     lookupProviderInfo Google dat = lookup' "sub" dat
     lookupProviderInfo Reddit dat = lookup' "name" dat
+    lookupProviderInfo Github dat = lookup' "name" dat
 
 oauth2Callback
   :: IAuthBackend u i e b
@@ -284,7 +287,7 @@ prepareOAuth2Create' s provider token =
   where
     checkDuplicate e = do
       isE <- isDuplicateError e
-      return $ Left $ if isE then Right $ OAuth2Failure AlreadyAttached else Left e
+      return $ Left $ if isE then Right $ OAuth2Failure IdentityInUse else Left e
 
 -- Check that stored action is not too old and that user matches
 doResume
@@ -302,32 +305,23 @@ doResume s provider token d = do
     d' <- ExceptT . return $ maybe (Left $ Right ActionDecodeError) Right $
       ((fmap $ \(_, _, x) -> x) . hush . Data.Binary.decodeOrFail . fromStrict) =<<
       (hush $ Data.ByteString.Base64.decode $ encodeUtf8 d)
+    when (requireUser d' && isNothing user) $ throwE (Right AttachNotLoggedIn)
     u <- ExceptT $ return . either (Left . Left) Right =<<
       (oauth2Check s) provider token
     -- Compare current user with action's stored user
     when (userId /= actionUser d') $
      throwE (Right ActionUserMismatch)
-    -- Compare current user with identity owner
-    when (maybe True ((/= userId) . Just) u) $
-      throwE (Right ActionUserMismatch)
+    case requireUser d' of
+      -- Compare current user with identity owner
+      True -> when (maybe True ((/= userId) . Just) u) $
+        throwE (Right ActionUserMismatch)
+      -- Ensure that the identity is not yet used
+      False -> when (isJust u) $ throwE (Right AlreadyAttached)
     expired <- liftIO $ isExpiredStamp (actionStamp d')
     when expired $ throwE (Right ActionTimeout)
     return $ savedAction d'
-  let
-    attach = maybe (setFailure ((oauth2Failure s) SAttach) (Just provider)
-                    (Right (Create $ OAuth2Failure AttachNotLoggedIn))) attach' user
-    attach' u = do
-      usr <- prepareOAuth2Create' s provider token
-      res' <- runExceptT $ do
-        i' <- hoistEither usr
-        ExceptT $ return . either (Left . Left) Right =<< attachLoginMethod u i'
-      case (usr, res') of
-        (Right i, Left _) -> cancelPrepare i
-        _ -> return ()
-      either (setFailure ((oauth2Failure s) SAttach) (Just provider) . fmap Create)
-        (const $ return ()) res'
   either (setFailure ((oauth2Failure s) SAction) (Just provider) . fmap Action)
-    (maybe attach ((resumeAction s) provider token)) res
+    ((resumeAction s) provider token) res
 
 -- User has successfully signed in via oauth2 and the provider/token
 -- did not match with an existing user.  This is the endpoint for
@@ -375,25 +369,14 @@ getActionKey p = do
   name <- maybe "auth" id <$> getSnapletName
   return $ "__" <> name <> "_" <> path <> "_action_" <> (T.pack $ show p)
 
-attachProvider
-  :: IAuthBackend u i e b
-  => Provider
-  -> Handler b (AuthManager u e b) ()
-attachProvider p = saveAction' p Nothing
-
 saveAction
   :: (IAuthBackend u i e b, Binary a)
-  => Provider
+  => Bool
+  -> Provider
   -> a
   -> Handler b (AuthManager u e b) ()
-saveAction p d = saveAction' p $ Just $ toStrict $ Data.Binary.encode d
-
-saveAction'
-  :: IAuthBackend u i e b
-  => Provider
-  -> Maybe ByteString
-  -> Handler b (AuthManager u e b) ()
-saveAction' provider d = do
+saveAction require provider a = do
+  let d = Data.Binary.encode a
   key <- getActionKey provider
   store <- gets $ stateStore'
   stamp <- liftIO $ getCurrentTime
@@ -402,7 +385,8 @@ saveAction' provider d = do
           actionProvider = provider
         , actionStamp = stamp
         , actionUser = i
-        , savedAction = d
+        , requireUser = require
+        , savedAction = toStrict d
         }
   let d' = decodeLatin1 $ Data.ByteString.Base64.encode $
         toStrict . Data.Binary.encode $ payload

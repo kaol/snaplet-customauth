@@ -35,30 +35,34 @@ data OAuth2Failure =
     StateNotStored | StateNotReceived | ExpiredState | BadState
   | ConfigurationError | IdExtractionFailed | NoStoredToken
   | AlreadyUser | AlreadyLoggedIn
-  | AttachNotLoggedIn | AlreadyAttached
+  | IdentityInUse
   | ProviderError (Maybe Text)
   | AccessTokenFetchError
   deriving (Show, Read, Eq)
 
 data OAuth2ActionFailure =
   ActionTimeout | ActionDecodeError | ActionUserMismatch
+  | AttachNotLoggedIn | AlreadyAttached
   deriving (Show, Eq, Read)
 
 data PasswordFailure = Missing | Mismatch
   deriving (Show, Eq, Read)
 
-data OAuth2Stage = SCallback | SLogin | SCreate | SAttach | SAction
+data OAuth2Stage = SCallback | SLogin | SCreate | SAction
   deriving (Show, Eq, Read)
 
 data Provider =
-  Google | Reddit
+  Google | Reddit | Github
   deriving (Show, Eq, Ord, Generic)
 
 data SavedAction = SavedAction {
     actionProvider :: Provider
   , actionStamp :: UTCTime
   , actionUser :: Maybe ByteString
-  , savedAction :: Maybe ByteString
+  -- Is the action expected to match with an ID attached to the user.
+  -- Use False if using the action to attach a new ID.
+  , requireUser :: Bool
+  , savedAction :: ByteString
   } deriving (Generic)
 
 instance Binary SavedAction
@@ -73,6 +77,8 @@ parseProvider "reddit" = Just Reddit
 parseProvider "Reddit" = Just Reddit
 parseProvider "google" = Just Google
 parseProvider "Google" = Just Google
+parseProvider "github" = Just Github
+parseProvider "Github" = Just Github
 parseProvider _ = Nothing
 
 data AuthUser = AuthUser

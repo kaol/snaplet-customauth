@@ -9,10 +9,12 @@ providerOpid
   -> AuthID
 providerOpid Reddit = 2
 providerOpid Google = 3
+providerOpid Github = 4
 
 opidProvider
   :: AuthID
   -> Provider
 opidProvider 2 = Reddit
 opidProvider 3 = Google
+opidProvider 4 = Github
 opidProvider _ = error "invalid opid"

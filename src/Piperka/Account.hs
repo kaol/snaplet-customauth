@@ -1,14 +1,18 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Piperka.Account (renderAccountForm, accountUpdateHandler, getUserEmail) where
 
+import Control.Error.Util (bool)
 import Control.Lens
 import Control.Monad.State
+import Data.Maybe
 import Heist.Compiled
 import Snap
 import Snap.Snaplet.CustomAuth
 import Snap.Snaplet.CustomAuth.User (setUser)
 import Snap.Snaplet.CustomAuth.OAuth2
+import Snap.Snaplet.Session
 
 import Application
 import Backend ()
@@ -22,10 +26,16 @@ import Piperka.Error.Splices
 renderAccountForm
   :: RuntimeAppHandler MyData
 renderAccountForm =
-  eitherDeferMap act stdSqlErrorSplice
-  (\n' -> withLocalSplices
-          (accountSplices n')
-          (accountAttrSplices $ (over _1 userAccount . snd) <$> n') runChildren)
+  eitherDeferMap act stdSqlErrorSplice $
+  \n' -> withLocalSplices
+         (accountSplices n')
+         (accountAttrSplices $ (over _1 userAccount . snd) <$> n') $ do
+    chl <- runChildren
+    attach <- callTemplate "_accountAttach"
+    return $ yieldRuntime $ do
+      isAttach <- fmap isJust $ lift $ withTop messages $
+        getFromSession "p_attach"
+      codeGen $ if isAttach then attach else chl
   where
     act usr = do
       err <- lift $ withTop' id $ view accountUpdateError
@@ -39,12 +49,15 @@ accountUpdateHandler
 accountUpdateHandler = do
   full <- maybe pass return =<< withTop auth currentUser
   let usr = user full
-  upd <- accountUpdates usr
-  case upd of
-    Left (Right (NeedsValidation p a)) -> withTop apiAuth $ do
-      setUser usr
-      saveAction p a
-      redirectToProvider p
-      return ()
-    Left (Left e) -> modify $ set accountUpdateError $ Just e
-    Right u -> withTop auth (setUser $ full {user = u})
+  (== (Just "Cancel")) <$> getParam "cancel_attach" >>= flip bool cancelAttach
+    (do
+        upd <- accountUpdates usr
+        case upd of
+          Left (Right (NeedsValidation p a)) -> withTop apiAuth $ do
+            setUser usr
+            saveAction True p $ AccountPayload a
+            redirectToProvider p
+            return ()
+          Left (Left e) -> modify $ set accountUpdateError $ Just e
+          Right u -> withTop auth (setUser $ full {user = u})
+    )

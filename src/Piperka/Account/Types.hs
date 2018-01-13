@@ -30,7 +30,7 @@ data ProviderData = ProviderData
   , identification :: Maybe Text
   }
 
-data NeedsValidation = NeedsValidation Provider AccountUpdate
+data NeedsValidation = NeedsValidation Provider PrivData
 
 data AccountUpdateError = AccountSqlError S.Error
                         | AccountPasswordMissing
@@ -53,28 +53,30 @@ instance Bounded AccountUpdateError where
   minBound = AccountSqlError (S.ClientError Nothing)
   maxBound = AccountNewPasswordMismatch
 
-data OAuth2Change = DeleteIdentity Provider
-                  | AddIdentity Provider Text
-                  deriving (Show, Eq, Generic)
-
 data AccountUpdate = AccountUpdateUnpriv
   { newWindows :: Bool
   , rows' :: Int32
   , columns' :: ViewColumns
-  } | AccountUpdatePriv
-  { validation :: ValidateMethod
-  , newPassword :: Maybe Text
+  } | AccountUpdatePriv ValidateMethod PrivData
+  deriving (Show, Eq, Generic)
+
+data PrivData = UpdateAccount
+  { newPassword :: Maybe Text
   , newPasswordRetype :: Maybe Text
   , email' :: Maybe Text
   , privacy' :: Privacy
   , writeup' :: Maybe Text
   , oauth2Removes :: [Provider]
   , passwordless :: Bool
-  }
+  } | AttachProvider Provider Text
+  deriving (Show, Eq, Generic)
+
+data OAuth2Payload = AccountPayload PrivData | AttachPayload Provider
   deriving (Show, Eq, Generic)
 
 instance Binary AccountUpdate
-instance Binary OAuth2Change
+instance Binary PrivData
+instance Binary OAuth2Payload
 
 data ValidateMethod = Password Text | OAuth2 Provider | Trusted
   deriving (Show, Eq, Generic)

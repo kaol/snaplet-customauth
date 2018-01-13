@@ -4,7 +4,6 @@ module Piperka.OAuth2 (piperkaOAuth2) where
 
 import Control.Lens (set)
 import Control.Monad.State
-import Data.Monoid
 import Data.Text (Text)
 import Hasql.Session (Error)
 import Network.HTTP.Client (Manager)
@@ -19,7 +18,7 @@ import Snap.Snaplet.CustomAuth.User (setUser)
 import Application hiding (httpManager)
 import qualified Backend
 import Piperka.Auth
-import Piperka.Account.Action (privUpdateConfirmed)
+import Piperka.Account.Action (actionCallback)
 import Piperka.OAuth2.Query
 
 piperkaOAuth2
@@ -27,14 +26,14 @@ piperkaOAuth2
   -> Manager
   -> OAuth2Settings MyData AuthID Error App
 piperkaOAuth2 s m = OAuth2Settings {
-    enabledProviders = [ Reddit, Google ]
+    enabledProviders = [ Reddit, Google, Github ]
   , oauth2Check = Backend.oauth2Check
   , oauth2Login = Backend.oauth2Login
   , oauth2Failure = handleFailure
   , prepareOAuth2Create = prepareCreate
   , oauth2AccountCreated = accountCreated
   , oauth2LoginDone = loginDone
-  , resumeAction = privUpdateConfirmed
+  , resumeAction = \a b c -> withTop' id $ actionCallback a b c
   , stateStore = s
   , httpManager = m
   , bracket = bracketDbOpen
@@ -45,7 +44,6 @@ handleFailure
   -> Handler App ApiAuth ()
 handleFailure SCreate = do
   failData <- withTop apiAuth getAuthFailData
-  liftIO $ print ("handlefailure SCreate " <> (show failData))
   let retry = do
         withTop' id $ modify $ set suppressError True
         cRender "newUserSelectName_"
@@ -53,10 +51,9 @@ handleFailure SCreate = do
     Just (Create DuplicateName) -> retry
     Just (Create InvalidName) -> retry
     _ -> withTop' id $ authHandler False $ cRender "oauth2Failure_"
-handleFailure a = withTop' id $ authHandler False $ do
-  failData <- withTop apiAuth getAuthFailData
-  liftIO $ print ("handlefailure " <> (show a) <> " " <> (show failData))
-  cRender "oauth2Failure_"
+
+handleFailure _ = withTop' id $ authHandler False $
+                  cRender "oauth2Failure_"
 
 prepareCreate
   :: Provider
@@ -75,5 +72,4 @@ loginDone
   :: Handler App ApiAuth ()
 loginDone = do
   usr <- withTop apiAuth $ currentUser
-  liftIO $ print ("logindone " <> (show usr))
   maybe (cRender "newUserSelectName_") (const $ redirect' "/updates.html" 303) usr

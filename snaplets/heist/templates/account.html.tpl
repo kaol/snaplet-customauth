@@ -1,31 +1,7 @@
 <h:piperka>
   <h:ifLoggedIn>
     <h:accountForm>
-      <h:hasError>
-	<maybeSqlError>
-	  <p>
-	    An error happened while trying to update account settings: <h:sqlError/>
-	  </p>
-	</maybeSqlError>
-	<passwordMissing>
-	  <p>
-	    You tried to alter password protected settings, but
-	    provided no password.  No changes made.
-	  </p>
-	</passwordMissing>
-	<wrongPassword>
-	  <p>
-	    You tried to change protected settings, but failed to
-	    provide the correct password.  No changes made.
-	  </p>
-	</wrongPassword>
-	<passwordMismatch>
-	  <p>
-	    You tried to change your password, but the two password
-	    entries didn't match.  No changes made.
-	  </p>
-	</passwordMismatch>
-      </h:hasError>
+      <h:hasError/>
       <h2>User options</h2>
       <h:csrfForm method="post" action="account.html">
 	<input type="hidden" name="action" value="settings_common"/>
@@ -56,17 +32,7 @@
 	    The following settings are protected and need either a
 	    password or OAuth2 verification to change.
 	  </p>
-	  <p>
-	    Authenticate changes with
-	    <select name="authenticate_with" id="authenticate_with">
-	      <option value="Password" h:hasNoPassword="disabled">Password</option>
-	      <h:oauth2Providers filter="True">
-		<option value="${h:name}"><h:label/></option>
-	      </h:oauth2Providers>
-	    </select>
-	  <p>
-	    Password: <input type="password" name="_password"/>
-	  </p>
+	  <h:authenticateWith/>
 	  <h3>Manage password</h3>
 	  <p>
 	    <label for="only_oauth2">Passwordless mode, use only OAuth2 for login </label>

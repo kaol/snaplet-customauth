@@ -3,6 +3,7 @@
 
 module Piperka.Account.Splices (accountSplices, accountAttrSplices) where
 
+import Control.Monad.Trans
 import Data.Maybe
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -14,6 +15,8 @@ import Heist.Compiled.Extra ( checkedSplice
                             , stdConditionalSplice
                             , IndexedAction(..))
 import qualified HTMLEntities.Text as HTML
+import Snap
+import Snap.Snaplet.Session
 import Text.XmlHtml
 
 import Application
@@ -33,7 +36,13 @@ accountSplices n = mapV ($ n) $ do
   "haveRemovableProviders" ## runId isJust
   "haveAttachableProviders" ## runId isNothing
   "oauth2Providers" ## renderProviders . fmap (providers . fst . snd)
-  "hasError" ## mayDeferMap (return . fst) accountErrorSplice
+  "hasError" ## const $ callTemplate "_accountError"
+  "accountValidationError" ## mayDeferMap (return . fst) accountErrorSplice
+  "content" ## const $ runChildren
+  "authenticateWith" ## const $ callTemplate "_authenticateWith"
+  "providerName" ## const $ return $ yieldRuntimeText $ do
+    dat <- lift $ withTop messages $ getFromSession "p_attach_name"
+    return $ fromMaybe "" dat
 
 accountErrorSplice
   :: RuntimeSplice AppHandler AccountUpdateError

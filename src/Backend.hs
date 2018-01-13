@@ -252,7 +252,6 @@ oauth2Login
   -> Text
   -> Handler App ApiAuth (Either Error (Maybe MyData))
 oauth2Login provider token = do
-  liftIO $ print ("oauth2login " <> (show provider) <> " " <> (show token))
   withTop db $ run $ query (fromIntegral $ providerOpid provider, token) stmt
   where
     stmt = statement sql encode decode True
@@ -268,7 +267,6 @@ oauth2Check
   -> Text
   -> Handler App ApiAuth (Either Error (Maybe ByteString))
 oauth2Check provider token = do
-  liftIO $ print ("oauth2check " <> (show provider) <> " " <> (show token))
   withTop db $ run $ query (fromIntegral $ providerOpid provider, token) stmt
   where
     stmt = statement sql encode decode True

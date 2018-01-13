@@ -8,7 +8,6 @@ module Snap.Snaplet.CustomAuth.OAuth2
   , parseProvider
   , addOAuth2Splices
   , oauth2Init
-  , attachProvider
   , saveAction
   , redirectToProvider
   , getOAuth2Provider

@@ -1,17 +1,17 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Piperka.Account.Action (accountUpdates, privUpdateConfirmed) where
+module Piperka.Account.Action (accountUpdates, actionCallback, cancelAttach) where
 
 import Control.Error.Util
 import Control.Monad.State
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
-import Data.Binary (decodeOrFail)
+import Data.Binary (encode, decodeOrFail)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Base64
 import Data.Text.Encoding (decodeLatin1, encodeUtf8)
-import Data.ByteString.Lazy (fromStrict)
+import Data.ByteString.Lazy (fromStrict, toStrict)
 import qualified Data.Map.Lazy as M
 import Data.Maybe (listToMaybe, fromMaybe, catMaybes)
 import Data.Text (Text)
@@ -38,13 +38,18 @@ getAccountUpdateUnpriv p = AccountUpdateUnpriv
 
 getAccountUpdatePriv
   :: Params
-  -> Maybe AccountUpdate
+  -> Maybe (PrivData -> AccountUpdate)
 getAccountUpdatePriv p = AccountUpdatePriv
   <$> (pure $
        (fromMaybe (Password $ fromMaybe ""
                    (maybeDecodeText =<< listToMaybe =<< M.lookup "_password" p))
         (fmap OAuth2 . parseProvider =<< listToMaybe =<< M.lookup "authenticate_with" p)))
-  <*> (pure $ maybeDecodeText =<< listToMaybe =<< M.lookup "new_passwd" p)
+
+updateProtected
+  :: Params
+  -> Maybe PrivData
+updateProtected p = UpdateAccount
+  <$> (pure $ maybeDecodeText =<< listToMaybe =<< M.lookup "new_passwd" p)
   <*> (pure $ maybeDecodeText =<< listToMaybe =<< M.lookup "new_passwd_retype" p)
   <*> (pure $ maybeDecodeText =<< listToMaybe =<< M.lookup "new_email" p)
   <*> (intToPrivacy <$> (maybeParseInt =<< listToMaybe =<< M.lookup "privacy" p))
@@ -98,10 +103,13 @@ tryUpdate usr a@(AccountUpdateUnpriv n r c) = let u = uid usr in
   where
     updatedPrefs = (prefs usr) {newExternWindows = n, rows = r, columns = c}
 
-tryUpdate usr a@(AccountUpdatePriv _ _ _ _ _ _ _ _) = runExceptT $ do
+tryUpdate usr (AccountUpdatePriv validation upd) = runExceptT $ do
   let u = uid usr
-  ExceptT $ validatePriv u a
-  withExceptT (Left . AccountSqlError) $ ExceptT $ tryUpdatePriv u a
+  ExceptT $ validatePriv u upd validation
+  withExceptT (Left . AccountSqlError) $ ExceptT $ tryUpdatePriv u upd
+  case upd of
+    AttachProvider _ _ -> lift cancelAttach
+    _ -> return ()
   return usr
 
 accountUpdates
@@ -109,24 +117,64 @@ accountUpdates
   -> AppHandler (Either (Either AccountUpdateError NeedsValidation) MyData)
 accountUpdates usr = do
   params <- getParams
+  let priv = getAccountUpdatePriv params
   update <- runMaybeT $ firstSuccess $ [
-      MaybeT . return $ getAccountUpdateUnpriv params
-    , MaybeT . return $ getAccountUpdatePriv params
+      hoistMaybe $ getAccountUpdateUnpriv params
+    , hoistMaybe (priv <*> updateProtected params)
+    , MaybeT $ withTop messages $ runMaybeT $ do
+        guard $ (== (Just "1")) $ listToMaybe =<< M.lookup "attach_provider" params
+        f <- hoistMaybe priv
+        (provider, token) <- (\(_,_,AttachProvider p t) -> (p,t)) <$>
+          (hoistMaybe . hush . decodeOrFail . fromStrict =<<
+           hoistMaybe . hush . Data.ByteString.Base64.decode . encodeUtf8 =<<
+           (MaybeT $ getFromSession "p_attach"))
+        return $ f $ AttachProvider provider token
     , MaybeT $ withTop messages $ runMaybeT $ do
         saved <- encodeUtf8 <$> (MaybeT $ getFromSession "p_priv")
         lift $ deleteFromSession "p_priv" >> commitSession
-        MaybeT . return $ (\(_,_,x) -> x { validation = Trusted }) <$>
+        hoistMaybe $ (\(_,_,x) -> AccountUpdatePriv Trusted x) <$>
           (hush . decodeOrFail . fromStrict =<< (hush $ Data.ByteString.Base64.decode saved))
     ]
   maybe (return $ Right usr) (tryUpdate usr) update
 
-privUpdateConfirmed
+actionCallback
   :: Provider
   -> Text
   -> ByteString
-  -> Handler App v ()
-privUpdateConfirmed _ _ d = do
+  -> AppHandler ()
+actionCallback _ t d = do
+  let decoded = (\(_,_,x) -> x) <$> (hush . decodeOrFail . fromStrict $ d)
+  case decoded of
+    Just (AccountPayload d') -> privUpdateConfirmed d'
+    Just (AttachPayload p') -> prepareAttach p' t
+    Nothing -> pass
+
+privUpdateConfirmed
+  :: PrivData
+  -> AppHandler ()
+privUpdateConfirmed d = do
+  let payload = decodeLatin1 $ Data.ByteString.Base64.encode $ toStrict $ encode d
   withTop messages $ do
-    setInSession "p_priv" (decodeLatin1 $ Data.ByteString.Base64.encode d)
+    setInSession "p_priv" payload
     commitSession
   redirect' "/account.html" 301
+
+prepareAttach
+  :: Provider
+  -> Text
+  -> AppHandler ()
+prepareAttach p t = do
+  let payload = decodeLatin1 $ Data.ByteString.Base64.encode $ toStrict $ encode $
+        AttachProvider p t
+  withTop messages $ do
+    setInSession "p_attach" payload
+    setInSession "p_attach_name" $ T.pack $ show p
+    commitSession
+  redirect' "/account.html" 301
+
+cancelAttach
+  :: AppHandler ()
+cancelAttach = withTop messages $ do
+  deleteFromSession "p_attach"
+  deleteFromSession "p_attach_name"
+  commitSession
