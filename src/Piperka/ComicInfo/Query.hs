@@ -2,6 +2,7 @@
 
 module Piperka.ComicInfo.Query where
 
+import Control.Error.Util (bool)
 import Control.Monad.Trans
 import Control.Monad.Trans.Except
 import Data.Text (Text)
@@ -15,7 +16,6 @@ import Application hiding (uid, taglookup, extlookup, prefs)
 import qualified Application (uid)
 import Piperka.ComicInfo.Statements
 import Piperka.ComicInfo.Types hiding (cid)
-import Piperka.Util (if')
 
 getComicInfo
   :: (Integral n)
@@ -41,7 +41,7 @@ getComicInfo taglookup extlookup cid usr = do
 
 checkDead :: Int -> RuntimeSplice AppHandler ComicInfoError
 checkDead cid =
-  (either SqlError (if' FoundDead Missing)) <$>
+  either SqlError (bool Missing FoundDead) <$>
   (lift $ withTop db $ run $ query (fromIntegral cid) isComicDeadFetch)
 
 

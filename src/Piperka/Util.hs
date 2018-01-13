@@ -7,7 +7,6 @@ module Piperka.Util
   , urlEncodeTextToBuilder
   , plural
   , formatTime'
-  , if'
   , maybeParseInt
   , maybeDecodeText
   , monadicTuple2
@@ -59,9 +58,6 @@ formatTime'
   => t
   -> String
 formatTime' = formatTime defaultTimeLocale "%F %T"
-
-if' :: a -> a -> Bool -> a
-if' t f v = if v then t else f
 
 maybeParseInt
   :: B.ByteString

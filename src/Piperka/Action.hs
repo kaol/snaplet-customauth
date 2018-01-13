@@ -29,7 +29,7 @@ import Backend ()
 import qualified Application as A
 import Piperka.Action.Types
 import Piperka.Action.Query
-import Piperka.Util (maybeParseInt, if')
+import Piperka.Util (maybeParseInt)
 
 processAction
   :: Maybe UserWithStats
@@ -95,7 +95,7 @@ extractAction rq params uid = do
                   >>= throwE) url
     extractLogout = do
       let logout = Just "logout" == lookup' "action"
-      extract $ if' (Just Logout) Nothing logout
+      extract $ bool Nothing (Just Logout) logout
     extractRevert = do
       let revert = lookup "revert" params
       extract $ (Revert . V.fromList . map fromIntegral .

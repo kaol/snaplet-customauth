@@ -29,7 +29,7 @@ import Application
 import Piperka.ComicInfo.Query
 import Piperka.ComicInfo.Types
 import Piperka.Error.Splices
-import Piperka.Util (formatTime', if', getCid)
+import Piperka.Util (formatTime', getCid)
 
 -- When used as a top level splice
 renderComicInfo
@@ -208,6 +208,6 @@ comicInfoSplices = do
           attrSplices = mapV (\f x _ -> f <$> x) $ do
             "description" ##
               maybe [] (\d -> [(T.pack "title", d)]) . tagDescription . snd
-            "class" ## if' [] [(T.pack "class", "odd")] . fst
+            "class" ## bool [(T.pack "class", "odd")] [] . fst
       in manyWith runChildren splices attrSplices $
          (zip (cycle [False, True]) . tags) <$> n
