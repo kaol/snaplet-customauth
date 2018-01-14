@@ -62,13 +62,12 @@ isValidURL
   -> Bool
 isValidURL u = T.take 7 u == "http://" || T.take 8 u == "https://"
 
--- TODO: Doesn't yet work for a tags
 sanitizeUserHTML
   :: Text
   -> Text
 sanitizeUserHTML txt =
   let tags = parseTags txt
-  in renderTags $ concat $ flip evalState False $ forM tags $ \t -> do
+      (tags', openA) = flip runState False $ forM tags $ \t -> do
         isAOpen <- get
         let maybeClose = if isAOpen then ((TagClose "a"):) else id
         case t of TagOpen "a" attrs -> do
@@ -90,6 +89,7 @@ sanitizeUserHTML txt =
                     put False
                     return $ maybeClose []
                   _ -> return []
+  in renderTags $ bool id (++[TagClose "a"]) openA $ concat $ tags'
 
 tryUpdate
   :: MyData
