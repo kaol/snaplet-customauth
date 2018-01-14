@@ -8,12 +8,12 @@ module Piperka.API.UserPrefs (userPrefs) where
 
 import Contravariant.Extras.Contrazip
 import Control.Applicative
-import Control.Monad.Trans.Class
+import Control.Error.Util (bool)
+import Control.Monad.Trans
 import Control.Monad.Trans.Except
 import Data.Aeson
-import Data.ByteString.Lazy (fromStrict)
-import qualified Data.ByteString.Lazy as B
-import Data.Maybe
+import qualified Data.ByteString as B
+import Data.ByteString.Char8 (split)
 import Data.Scientific
 import Data.Text (Text)
 import Data.UUID
@@ -29,6 +29,7 @@ import Snap.Snaplet.Hasql
 
 import Application hiding (rows)
 import Piperka.API.Common
+import Piperka.Util (maybeParseInt)
 
 data Subscription = Subscription Int Int Int Int Int
 
@@ -68,10 +69,24 @@ decodeUserPrefs =
 instance ToJSON UserInfo where
   toEncoding = genericToEncoding defaultOptions
 
+data BookmarkSet = Max | Del | Page Int
+  deriving (Show)
+
+decodeBookmarkSet
+  :: B.ByteString
+  -> Maybe (Int, BookmarkSet)
+decodeBookmarkSet b = do
+  [c, d] <- return $ split ' ' b
+  c' <- maybeParseInt c
+  d' <- case d of
+          "max" -> return Max
+          "del" -> return Del
+          _ -> Page <$> maybeParseInt d
+  return (c', d')
+
 userPrefs :: AppHandler ()
 userPrefs = do
-  bookmark <- ((decode :: B.ByteString -> Maybe [Value]) . fromStrict =<<)
-              <$> getParam "bookmark[]"
+  bookmark <- (decodeBookmarkSet =<<) <$> getParam "bookmark[]"
   maybe readPrefs (\b -> runUserQueries $ setBookmark b) bookmark
   where
     readPrefs = do
@@ -97,38 +112,33 @@ userPrefs = do
            \ORDER BY Num DESC, ordering_form(title)"
 
 setBookmark
-  :: [Value]
+  :: (Int, BookmarkSet)
   -> MyData
   -> UserQueryHandler ()
-setBookmark bookmark p = do
+setBookmark (c, bookmark) p = do
   lift $ validateCsrf
   let u = uid p
-  let act = case bookmark of
-        [Number c, o] ->
-          toBoundedInteger c >>= \cid ->
-          case o of
-            Number o' -> do
-              ord <- (\n -> if n < 0 then 0 else n) <$> toBoundedInteger o'
-              return ((ExceptT $ run $ query (u, cid, ord) $
-                       statement sql1
-                       (contrazip3
-                        (EN.value EN.int4)
-                        (EN.value EN.int4)
-                        (EN.value EN.int4))
-                       DE.unit True) >> (return $ Just ord))
-            String "max" ->
-              return $ ExceptT $ run $ query (u, cid) $
-              statement sql2
-              (contrazip2 (EN.value EN.int4) (EN.value EN.int4))
-              (DE.singleRow $ liftA Just $ DE.value DE.int4) True
-            String "del" ->
-              return $ ((ExceptT $ run $ query (u, cid) $
-                         statement sql3
-                         (contrazip2 (EN.value EN.int4) (EN.value EN.int4))
-                         DE.unit True) >> return Nothing)
-            _ -> Nothing
-        _ -> Nothing
-  ord <- fromMaybe (lift $ simpleFail 400 "Invalid bookmark[] parameter") act
+  let cid = fromIntegral c
+  ord <- case bookmark of
+    Page o' ->
+      let ord = fromIntegral $ bool 0 o' (o' < 0)
+      in (ExceptT $ run $ query (u, cid, ord) $
+           statement sql1
+           (contrazip3
+             (EN.value EN.int4)
+             (EN.value EN.int4)
+             (EN.value EN.int4))
+           DE.unit True) >> (return $ Just ord)
+    Max ->
+      ExceptT $ run $ query (u, cid) $
+      statement sql2
+      (contrazip2 (EN.value EN.int4) (EN.value EN.int4))
+      (DE.singleRow $ liftA Just $ DE.value DE.int4) True
+    Del ->
+      ((ExceptT $ run $ query (u, cid) $
+         statement sql3
+         (contrazip2 (EN.value EN.int4) (EN.value EN.int4))
+         DE.unit True) >> return Nothing)
   lift $ writeLBS $ encode $ object $ maybe
     id (\o -> ("ord" .= o :)) ord $ ["ok" .= True]
   where
@@ -146,6 +156,6 @@ setBookmark bookmark p = do
            \WHERE cid=updates.cid AND ord=updates.ord), 1) \
            \FROM updates WHERE cid=$2 ORDER BY ord DESC LIMIT 1 \
            \ON CONFLICT (uid, cid) \
-           \DO UPDATES SET ord = EXCLUDED.ord, subord = EXCLUDED.subord \
+           \DO UPDATE SET ord = EXCLUDED.ord, subord = EXCLUDED.subord \
            \RETURNING ord+1"
     sql3 = "DELETE FROM subscriptions WHERE uid=$1 AND cid=$2"

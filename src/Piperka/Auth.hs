@@ -6,6 +6,7 @@ import Control.Monad.State
 import Control.Lens
 import Data.Maybe (isJust)
 import Data.IORef
+import Data.UUID (toASCIIBytes)
 import Snap
 import Snap.Snaplet.CustomAuth
 import Snap.Snaplet.CustomAuth.User (setUser)
@@ -22,7 +23,7 @@ authHandler
 authHandler alwaysMinimal action = do
   failed <- liftIO $ newIORef False
   let loginFailed = withTop' id $ liftIO $ writeIORef failed True
-  useMinimal <- if alwaysMinimal then return True else isJust <$> getParam "minimal"
+  useMinimal <- if alwaysMinimal then return True else isJust <$> getParam "min"
   modify $ set minimal useMinimal
   case useMinimal of
     True -> (withTop apiAuth $ combinedLoginRecover loginFailed) >> return ()
@@ -32,7 +33,12 @@ authHandler alwaysMinimal action = do
           modify $ set actionResult act
           maybe (return ()) (withTop auth . setUser) usr)
   isFailed <- liftIO $ readIORef failed
+  maybe (return ()) setCsrfCookie =<< currentUserPlain
   if isFailed then cRender "loginFailed_" else action
+  where
+    setCsrfCookie usr = modifyResponse $ addResponseCookie $
+      Cookie "csrf_ham" (toASCIIBytes $ ucsrfToken usr)
+      Nothing Nothing (Just "/") False False
 
 currentUserPlain
   :: AppHandler (Maybe MyData)

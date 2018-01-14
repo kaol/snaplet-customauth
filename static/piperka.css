@@ -1,0 +1,328 @@
+body
+{
+background-color: #eee;
+color: black;
+}
+
+.hiliteBG
+{
+background-color: #ddd;
+border-color: #ddd;
+}
+
+a img
+{
+border: 0px
+}
+
+div.container
+{
+position: relative;
+width: 100%;
+}
+
+div#header
+{
+color: black;
+border-style: solid;
+border-width: 1px;
+overflow: auto;
+min-height: 85px;
+}
+
+#banner
+{
+position: absolute;
+top: -83px;
+right: 0px;
+width: 468px;
+height: 83px;
+}
+
+img#paprikat
+{
+position: relative;
+float:left;
+margin-right:10%;
+}
+
+div.sidebar
+{
+float: left;
+width: 160px;
+color: black;
+}
+
+div.smallad
+{
+position: absolute;
+top: 0px;
+right: 0px;
+}
+
+div.control
+{
+padding-left: 5px;
+}
+
+#example
+{
+float: right;
+}
+
+ul.control
+{
+list-style-position: outside;
+}
+
+span.error
+{
+color: red;
+}
+
+span.message
+{
+color: green;
+}
+
+div.main
+{
+margin-left:160px;
+padding-left:20px;
+border-top-left-radius: 30px 20px;
+background:#eee;
+}
+
+div#maincornerback {
+width: 250px;
+height: 40px;
+position: absolute;
+background: #ddd;
+z-index: -1;
+}
+
+input.login
+{
+padding-right: 0%;
+margin-right: 5%;
+right: 0%;
+}
+
+#loginsubmit
+{
+float:right;
+margin-top:5px;
+}
+
+div.priv_settings
+{
+border: thick solid gray;
+padding: 1%;
+margin-right: 10px;
+}
+
+.plus, .minus
+{
+font: bold 12px "Courier New", Courier, fixed;
+border-style: nothing;
+border-width: 0px;
+width: 1.7em;
+pointer: pointer;
+}
+
+.minus
+{
+background: blue;
+color: white;
+}
+
+.plus
+{
+background: red;
+color: yellow;
+}
+
+div.list2
+{
+width: 45%;
+float: left;
+}
+
+div.list3
+{
+width: 33%;
+float: left;
+}
+
+ul.list
+{
+list-style-type: none;
+}
+
+.paginate
+{
+padding-left: 20%;
+}
+
+.bottom
+{
+clear: left
+}
+
+ul.tags
+{
+list-style-type: none;
+}
+
+div.example
+{
+border-style: ridge;
+float: right;
+width: 25%;
+margin-left: 3%;
+clear: both;
+}
+
+.concrete_ex
+{
+border-style: ridge;
+margin-left: 10%;
+width: 80%;
+}
+
+.legalese
+{
+clear:both;
+font-size: small;
+margin-left: 160px;
+}
+
+div.related
+{
+float:right;
+clear: right;
+width: 25%;
+}
+
+table#crawlerr th {
+text-align: left;
+}
+
+table#crawlerr td {
+font-size: small;
+}
+
+#clickme:hover {
+color:blue;
+}
+
+.script {
+    display: none;
+}
+
+.scripthidden {
+    visibility: hidden;
+}
+
+.odd {
+    background-color: #cccccc;
+}
+
+span.category, span.epedia-entry {
+    display: list-item;
+    margin-left: 1em;
+    list-style-type: none;
+}
+
+#epedias input {
+    width: 40ex;
+}
+
+.urlbase {
+    text-align: right;
+}
+
+.hilite {
+    background: yellow;
+    border-top-right-radius: 1.5em 1em;
+}
+
+.ui-dialog {
+    background: white;
+}
+
+.ui-dialog-titlebar {
+    background: orange;
+}
+
+.ui-dialog-titlebar-close {
+    float: right;
+}
+
+.maincategory .description {
+    font-size: small;
+    margin-left: 1em;
+}
+
+span.diff span {
+    margin-right: 1em;
+}
+
+#smalladbg {
+background-color: #ddd;
+}
+
+#newin {
+display: inline-block;
+}
+
+#readerchart {
+width: 25%;
+height: 300px;
+float: right;
+clear: right;
+}
+
+#alphabet_index {
+margin-top: 0.5ex;
+margin-bottom: 0.5ex;
+}
+
+
+#alphabet_index a {
+padding-left: 0.2ex;
+font-family: courier;
+}
+
+#quicksearch .ui-helper-hidden-accessible {
+display: none;
+}
+
+.youcare {
+font-weight: bold;
+}
+
+#piperka_list .followee {
+float: right;
+font-size: small;
+color: green;
+}
+
+.permissiononly:after {
+content: '*';
+font-size: small;
+}
+
+.passiveuser {
+opacity: 0.5;
+}
+
+#loginwith {
+float: right;
+}
+
+.nsfw::after {
+    color: red;
+    content: "n";
+    font-size: small;
+}

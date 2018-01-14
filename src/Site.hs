@@ -11,38 +11,31 @@ module Site
 
 ------------------------------------------------------------------------------
 import Control.Concurrent.ParallelIO.Local
-import Control.Monad.Trans
-import           Data.ByteString (ByteString)
---import           Data.Monoid
---import qualified Data.Text as T
---import           Snap.Core
-import Network.HTTP.Client.TLS
-import           Snap.Snaplet
-import Snap.Snaplet.Heist
-import Snap.Snaplet.Session.Backends.CookieSession
---import           Snap.Util.FileServe
-import           Heist
---import qualified Heist.Interpreted as I
---import qualified Heist.Compiled as C
-------------------------------------------------------------------------------
-import           Application
---import Backend
-import Snap.Core (ifTop)
-import           Snap.Snaplet.CustomAuth
-import           Snap.Snaplet.Hasql
-import           Piperka.Splices
 import Control.Lens
-import Data.ByteString.UTF8 (fromString)
+import Control.Monad.Trans
+import Data.ByteString (ByteString)
 import qualified Data.Configurator
 import Data.Monoid
-
+import Heist
+import Network.HTTP.Client.TLS
+import Snap.Core (ifTop)
+import Snap.Snaplet
+import Snap.Snaplet.CustomAuth
+import Snap.Snaplet.Hasql
+import Snap.Snaplet.Heist
+import Snap.Snaplet.Session.Backends.CookieSession
+import Snap.Util.FileServe
 import System.Directory (listDirectory)
+import Data.ByteString.UTF8 (fromString)
+
+import Application
+import Piperka.Account
+import Piperka.API
 import Piperka.Auth (authHandler, mayCreateAccount)
 import Piperka.ComicInfo.Tag
 import Piperka.ComicInfo.External
-import Piperka.API
-import Piperka.Account
 import Piperka.OAuth2
+import Piperka.Splices
 
 ------------------------------------------------------------------------------
 -- | The application's routes.
@@ -84,20 +77,10 @@ routes = do
     , ("index.html", authHandler False $ cRender "index")
     ]
 
-{-
-templateRoutes :: SnapletInit App [(ByteString, Handler App App ())]
-templateRoutes = do
-  files <- listDirectory "snaplets/heist/templates"
-  mapped._2 %~bra
--}
-
-{-
 staticRoutes :: [(ByteString, Handler App App ())]
 staticRoutes =
   [ ("",          serveDirectory "static")
   ]
--}
-
 
 data ParLabels a b c = L1 a | L2 b | L3 c
 
@@ -135,4 +118,5 @@ app = makeSnaplet "piperka" "Piperka application." Nothing $ do
        & hcTemplateLocations .~ [loadTemplates "templates"]
   d <- nestSnaplet "" db $ hasqlInit conn
   addRoutes =<< (liftIO routes)
+  addRoutes staticRoutes
   return $ App h a a' d m elookup tlookup mgr False False Nothing Nothing

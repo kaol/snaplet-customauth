@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8"/>
+    <title>Piperka Map (beta)</title>
+    <link rel="stylesheet" type="text/css" href="map.css">
+    <link rel="stylesheet" type="text/css" href="/qsearch.css">
+    <link rel="canonical" href="http://piperka.net/map/" />
+    <script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
+    <script type="text/javascript" src="https://apis.google.com/js/plusone.js"></script>
+    <script src="map.js"></script>
+    <script src="/qsearch.js"></script>
+  </head>
+
+  <body>
+    <div id="controls">
+      <div class="solid">
+	<div id="quicksearch">
+	  <form>
+	    <label for="qinput">Quick search: </label><input id="qinput" type="input"/><button type="submit">Go!</button>
+	    <label for="showallresults">Show all results </label><input type="checkbox" id="showallresults">
+	  </form>
+	</div>
+	<div>
+	  <span class="script useronly"><label for="atfirst">Bookmark the first comic</label><input id="atfirst" disabled="true" type="checkbox" checked="true"/></span>
+	  <div style="float: right;">
+	    <div class="g-plusone" data-size="small"></div>
+	  </div>
+	</div>
+      </div>
+      <div id="navigate">
+	<div class="button" id="fit">Fit</div>
+	<div class="button zoom" data-dir="in">+</div>
+	<div class="button zoom" data-dir="out">-</div>
+      </div>
+    </div>
+    <div id="svgcontainer">
+      <svg preserveAspectRatio="xMidYMid meet" viewbox="0 0 1 1">
+	<g id="map" transform="scale(0.001)">
+	</g>
+	<g id="selectionpalette" transform="translate(0 0) scale(1)">
+	  <circle class="shadow" r="40"/>
+	  <g id="subscribe" class="action" transform="translate(27 -27)">
+	    <circle r="14"/>
+	    <text x="-8" y="8">+</text>
+	  </g>
+	  <g id="unsubscribe" class="action" transform="translate(27 -27)">
+	    <circle r="14"/>
+	    <text x="-8" y="8">-</text>
+	  </g>
+	  <g id="info" class="action" transform="translate(-27 27)">
+	    <circle r="14"/>
+	    <text x="-8" y="8">i</text>
+	  </g>
+	</g>
+      </svg>
+    </div>
+    <span><div id="comicnameblurb"></div></span>
+  </body>
+</html>

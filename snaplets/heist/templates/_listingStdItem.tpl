@@ -1,4 +1,4 @@
-<h:item type="UserMode"> <!-- Item -->
+<h:item type="UserMode">
   <li>
     <h:followee>
       <a href="readers.html?cid=${h:cid}">F</a>

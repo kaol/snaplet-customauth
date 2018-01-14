@@ -1,0 +1,110 @@
+body {
+margin: 0px;
+overflow: hidden;
+background: black;
+}
+
+#controls {
+position: absolute;
+top: 1em;
+left: 1em;
+}
+
+#controls .solid, #navigate .button {
+background: #eee;
+}
+
+#controls .solid {
+border: 2px solid black;
+}
+
+#controls .button {
+margin-right: 1em;
+display: inline;
+padding: 1px 5px;
+cursor: pointer;
+border: 2px solid black;
+}
+
+circle.comic {
+fill: lightgrey;
+}
+
+circle.comic.subscribed {
+fill: deepskyblue;
+}
+
+circle.comic.subscribed.otheruser {
+fill: magenta;
+}
+
+circle.comic.otheruser {
+fill: tomato;
+}
+
+#comicnameblurb {
+background: #eee;
+position: fixed;
+border: 2px solid black;
+padding: 1px 5px;
+user-select: none;
+}
+
+svg text{
+-webkit-user-select: none;
+-moz-user-select: none;
+-ms-user-select: none;
+}
+
+text.comic {
+fill: black;
+font-size: 1px;
+font-family: courier;
+pointer-events: none;
+}
+
+#selectionpalette {
+display: none;
+}
+
+#selectionpalette .shadow {
+opacity: 0.2;
+fill: yellow;
+}
+
+#selectionpalette .action {
+cursor: pointer;
+}
+
+#selectionpalette text {
+font-size: 30px;
+font-family: courier;
+}
+
+#subscribe circle {
+fill: red;
+}
+
+#subscribe text {
+fill: yellow;
+}
+
+#unsubscribe circle {
+fill: blue;
+}
+
+#unsubscribe text {
+fill: white;
+}
+
+#info circle {
+fill: green;
+}
+
+#info text {
+fill: black;
+}
+
+.useronly {
+opacity: 0.5;
+}

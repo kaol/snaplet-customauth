@@ -20,7 +20,7 @@ setUser usr = do
   sesName <- gets sessionCookieName
   let udata = extractUser usr
   -- TODO
-  let wafer = Cookie sesName (encodeUtf8 $ session udata) Nothing Nothing (Just "/") False False
+  let wafer = Cookie sesName (encodeUtf8 $ session udata) Nothing Nothing (Just "/") False True
   modifyResponse $ addResponseCookie wafer
   modify $ \mgr -> mgr { activeUser = Just usr }
 

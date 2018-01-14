@@ -4,12 +4,12 @@
   </ol>
 </h:listingMode>
 <h:listingMode type="[Browse,Profile]">
-  <ul>
+  <ul class="list">
     <h:listingStdItem/>
   </ul>
 </h:listingMode>
 <h:listingMode type="[Update]">
-  <ul>
+  <ul class="list">
     <h:item type="UpdateMode">
       <h:holdbookmark check="True">
 	<li class="booklink" id="c${h:cid}">
@@ -27,7 +27,7 @@
   </ul>
 </h:listingMode>
 <h:listingMode type="[Graveyard]">
-  <ul>
+  <ul class="list">
     <h:item type="ListingMode">
       <li>
 	<button class="script null" value="${h:cid}">&nbsp;</button>
