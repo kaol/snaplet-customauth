@@ -1,6 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE Arrows #-}
 
 {-# OPTIONS -Wno-unused-top-binds #-}
 
@@ -117,6 +116,7 @@ setBookmark
   -> UserQueryHandler ()
 setBookmark (c, bookmark) p = do
   lift $ validateCsrf
+  getUnread <- lift $ maybe False (== "1") <$> getParam "getunread"
   let u = uid p
   let cid = fromIntegral c
   ord <- case bookmark of
@@ -139,7 +139,14 @@ setBookmark (c, bookmark) p = do
          statement sql3
          (contrazip2 (EN.value EN.int4) (EN.value EN.int4))
          DE.unit True) >> return Nothing)
-  lift $ writeLBS $ encode $ object $ maybe
+  let stats =
+        (\(totalNew, newIn) ->
+            (("total_new" .= totalNew :) . ("new_in" .= newIn :))) <$>
+        (ExceptT $ run $ query u $
+         statement sql4 (EN.value EN.int4)
+         (DE.singleRow $ (,) <$> DE.value DE.int4 <*> DE.value DE.int4) True)
+  addStats <- bool (return id) stats getUnread
+  lift $ writeLBS $ encode $ object $ addStats . maybe
     id (\o -> ("ord" .= o :)) ord $ ["ok" .= True]
   where
     sql1 = "INSERT INTO subscriptions (uid, cid, ord, subord) \
@@ -159,3 +166,4 @@ setBookmark (c, bookmark) p = do
            \DO UPDATE SET ord = EXCLUDED.ord, subord = EXCLUDED.subord \
            \RETURNING ord+1"
     sql3 = "DELETE FROM subscriptions WHERE uid=$1 AND cid=$2"
+    sql4 = "SELECT total_new, new_in FROM user_unread_stats($1)"

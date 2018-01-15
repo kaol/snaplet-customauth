@@ -40,7 +40,7 @@
 	    <br/><a href="/browse.html">Browse comics</a><h:newLink> (<a h:href=""><h:new/> new</a>)</h:newLink>
 	    <h:ifLoggedIn>
 	      <p>You are logged in as <a href="${h:profileLink}"><h:loggedInUser/></a></p>
-	      <a href="/updates.html">Check updates</a> <h:unreadStats/>
+	      <a href="/updates.html">Check updates</a> <span id="newin"><h:unreadStats/></span>
 	      <br/><a href="/account.html">Your account</a>
 	      <br/><a href="/?action=logout&csrf_ham=${h:csrf}">Logout</a>
 	      <h:ifMod>

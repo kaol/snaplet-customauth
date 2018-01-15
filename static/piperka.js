@@ -280,9 +280,8 @@ $(document).ready(function(){
 	event.preventDefault();
 	function updateUnread(unread) {
 	    if (unread.total_new > 0) {
-		var newin = $('#newin').show().find('span');
-		newin[0].innerText = unread.total_new;
-		newin[1].innerText = unread.new_in;
+		var newin = $('#newin').show();
+		newin.text('('+unread.total_new+' new in '+unread.new_in+')');
 	    } else {
 		$('#newin').hide();
 	    }
