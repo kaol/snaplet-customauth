@@ -96,11 +96,53 @@ BEGIN
       UPDATE users SET seen_comics_before = COALESCE(last_active,NOW()) WHERE o_uid=uid;
     END IF;
   END IF;
--- TODO: precalculate, this adds 30ms (on my dev box) to every page access
-  SELECT COALESCE(SUM(num), 0), COUNT(*) from comic_remain_frag(uid) JOIN comics USING (cid) WHERE num > 0 INTO total_new, new_in;
+  SELECT * FROM user_unread_stats(uid) INTO total_new, new_in;
   SELECT COUNT(*) INTO new_comics FROM comics, users WHERE users.uid=get_and_update_stats.uid AND comics.added_on > users.seen_comics_before;
 END;
 $$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION user_unread_stats(uid integer, OUT total_new integer, OUT new_in integer) AS $$
+BEGIN
+  SELECT user_stats_cache.total_new, user_stats_cache.new_in FROM user_stats_cache WHERE user_stats_cache.uid=user_unread_stats.uid INTO total_new, new_in;
+  IF total_new IS NULL THEN
+    SELECT COALESCE(SUM(num), 0), COUNT(*) from comic_remain_frag(uid) JOIN comics USING (cid) WHERE num > 0 INTO total_new, new_in;
+    INSERT INTO user_stats_cache (uid, total_new, new_in) VALUES (uid, total_new, new_in) ON CONFLICT ON CONSTRAINT user_stats_cache_pkey DO UPDATE SET total_new=EXCLUDED.total_new, new_in=EXCLUDED.new_in;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TABLE user_stats_cache (
+  uid int NOT NULL PRIMARY KEY REFERENCES users (uid) ON DELETE CASCADE,
+  total_new int NOT NULL,
+  new_in int NOT NULL
+);
+
+CREATE OR REPLACE FUNCTION invalidate_user_stats_uid() RETURNS trigger AS $$
+BEGIN
+  IF TG_OP IN ('INSERT', 'UPDATE') THEN
+    DELETE FROM user_stats_cache WHERE NEW.uid=uid;
+  ELSIF TG_OP IN ('DELETE', 'TRUNCATE') THEN
+    DELETE FROM user_stats_cache WHERE OLD.uid=uid;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER invalidate_user_stats_subscriptions AFTER DELETE OR INSERT OR UPDATE ON subscriptions FOR EACH ROW EXECUTE PROCEDURE invalidate_user_stats_uid();
+
+CREATE OR REPLACE FUNCTION invalidate_user_stats_cid() RETURNS trigger AS $$
+BEGIN
+  IF TG_OP IN ('INSERT', 'UPDATE') THEN
+    DELETE FROM user_stats_cache WHERE uid IN (SELECT uid FROM subscriptions WHERE cid=NEW.cid);
+  ELSIF TG_OP IN ('DELETE', 'TRUNCATE') THEN
+    DELETE FROM user_stats_cache WHERE uid IN (SELECT uid FROM subscriptions WHERE cid=OLD.cid);
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER invalidate_user_stats_updates AFTER DELETE OR INSERT ON updates FOR EACH ROW EXECUTE PROCEDURE invalidate_user_stats_cid();
+CREATE TRIGGER invalidate_user_stats_updates AFTER DELETE ON comics FOR EACH ROW EXECUTE PROCEDURE invalidate_user_stats_cid();
 
 CREATE OR REPLACE FUNCTION must_have_login2() RETURNS trigger AS $$
 DECLARE
