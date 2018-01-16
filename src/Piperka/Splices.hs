@@ -45,6 +45,7 @@ import Piperka.Submit.Splices
 import Piperka.Listing.Render
 import Piperka.ComicInfo.Splices
 import Piperka.Messages
+import Piperka.Readers
 import Piperka.Recover
 import Piperka.Util
 
@@ -186,6 +187,7 @@ contentSplices' ini = do
   "paramAttrs" ## const $ withLocalSplices mempty ("value" ## paramValue) runChildren
   "providers" ## renderProviders
   "oauth2Create" ## renderOAuth2
+  "readers" ## renderReaders
 
 loggedInSplices
   :: Splices (RuntimeAppHandler MyData)
