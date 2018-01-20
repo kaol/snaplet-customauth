@@ -12,6 +12,13 @@ import Snap.Snaplet.CustomAuth.OAuth2 (Provider)
 import Piperka.Listing.Types (ViewColumns(..))
 import Piperka.Profile.Types (Privacy(..))
 
+data BookmarkOptions = BookmarkOptions
+  { bookmarkSort :: Int32
+  , offsetMode :: Bool
+  , holdBookmark :: Bool
+  }
+  deriving (Show, Eq, Generic)
+
 data AccountData = AccountData
   { userAccount :: UserAccountSettings
   , providers :: [ProviderData]
@@ -22,6 +29,7 @@ data UserAccountSettings = UserAccountSettings
   , hasPassword :: Bool
   , email :: Maybe Text
   , writeup :: Maybe Text
+  , bookmarkSettings :: BookmarkOptions
   } deriving (Show, Eq)
 
 data ProviderData = ProviderData
@@ -57,6 +65,7 @@ data AccountUpdate = AccountUpdateUnpriv
   { newWindows :: Bool
   , rows' :: Int32
   , columns' :: ViewColumns
+  , bookmarkSettings' :: BookmarkOptions
   } | AccountUpdatePriv ValidateMethod PrivData
   deriving (Show, Eq, Generic)
 
@@ -74,6 +83,7 @@ data PrivData = UpdateAccount
 data OAuth2Payload = AccountPayload PrivData | AttachPayload Provider
   deriving (Show, Eq, Generic)
 
+instance Binary BookmarkOptions
 instance Binary AccountUpdate
 instance Binary PrivData
 instance Binary OAuth2Payload

@@ -13,11 +13,11 @@ import Hasql.Query
 import Prelude hiding (Ordering)
 
 updateOrderingDecode :: Int32 -> Ordering
-updateOrderingDecode 0 = UserUpdates
-updateOrderingDecode 1 = UserUpdatesDesc
-updateOrderingDecode 2 = UpdateAsc
-updateOrderingDecode 3 = UpdateDesc
-updateOrderingDecode _ = TitleAsc
+updateOrderingDecode 0 = UserUpdatesDesc
+updateOrderingDecode 1 = UserUpdates
+updateOrderingDecode 2 = TitleAsc
+updateOrderingDecode 3 = UpdateAsc
+updateOrderingDecode _ = UpdateDesc
 
 updateOptionsRow :: DE.Row UpdateOptions
 updateOptionsRow =

@@ -32,9 +32,16 @@ getAccountUpdateUnpriv
   :: Params
   -> Maybe AccountUpdate
 getAccountUpdateUnpriv p = AccountUpdateUnpriv
-  <$> (((== "1") . head) <$> M.lookup "new_windows" p)
-  <*> (fromIntegral <$> ((maybeParseInt . head) =<< M.lookup "set_rows" p))
-  <*> (intToColumns <$> ((maybeParseInt . head) =<< M.lookup "set_columns" p))
+  <$> (pure $ fromMaybe False $
+       (== "1") <$> (listToMaybe =<< M.lookup "new_windows" p))
+  <*> (fromIntegral <$> (maybeParseInt =<< listToMaybe =<< M.lookup "set_rows" p))
+  <*> (intToColumns <$> (maybeParseInt =<< listToMaybe =<< M.lookup "set_columns" p))
+  <*> (BookmarkOptions
+       <$> (fromIntegral <$> ((\x -> if x >= 0 && x <= 4 then Just x else Nothing) =<<
+                              maybeParseInt =<< listToMaybe =<< M.lookup "bookmark_sort" p))
+       <*> (pure $ fromMaybe False $
+            (== "1") <$> (listToMaybe =<< M.lookup "offset_bookmark_by_one" p))
+       <*> ((== "1") <$> (listToMaybe =<< M.lookup "hold_bookmark" p)))
 
 getAccountUpdatePriv
   :: Params
@@ -95,7 +102,7 @@ tryUpdate
   :: MyData
   -> AccountUpdate
   -> AppHandler (Either (Either AccountUpdateError NeedsValidation) MyData)
-tryUpdate usr a@(AccountUpdateUnpriv n r c) = let u = uid usr in
+tryUpdate usr a@(AccountUpdateUnpriv n r c _) = let u = uid usr in
   updateUnpriv u a >>=
   return . either
   (Left . Left . AccountSqlError)

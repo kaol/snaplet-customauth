@@ -61,8 +61,16 @@ accountAttrSplices
   -> Splices (Text -> RuntimeSplice AppHandler [(Text, Text)])
 accountAttrSplices n = mapV ($ n) $ do
   "value" ## valueSplice
-  "columns" ## columnSplice . fmap (columns . prefs . snd)
-  "privacy" ## privacySplice . fmap (privacy . fst)
+  "columns" ## settingAttrSplice (intToColumns :: Int -> ViewColumns) .
+    fmap (columns . prefs . snd)
+  "privacy" ## settingAttrSplice (intToPrivacy :: Int -> Privacy) .
+    fmap (privacy . fst)
+  "holdBookmark" ## settingAttrSplice id .
+    fmap (holdBookmark . bookmarkSettings . fst)
+  "sortBookmark" ## settingAttrSplice id .
+    fmap (bookmarkSort . bookmarkSettings . fst)
+  "offsetMode" ## settingAttrSplice id .
+    fmap (offsetMode . bookmarkSettings . fst)
   "hasNoPassword" ## hasSplice . fmap (not . hasPassword . fst)
 
 valueSplice
@@ -77,23 +85,15 @@ valueSplice n "email" = email . fst <$> n >>= \e ->
   return $ maybeToList $ e >>= \e' -> return ("value", e')
 valueSplice _ _ = error "unknown value"
 
-columnSplice
-  :: RuntimeSplice AppHandler ViewColumns
-  -> Text
-  -> RuntimeSplice AppHandler [(Text, Text)]
-columnSplice n t = do
-  userCol <- n
-  let col = (intToColumns :: Int -> ViewColumns) $ read $ T.unpack t
-  return $ if userCol == col then [("checked", "")] else []
-
-privacySplice
-  :: RuntimeSplice AppHandler Privacy
-  -> Text
-  -> RuntimeSplice AppHandler [(Text, Text)]
-privacySplice n t = do
-  userPriv <- n
-  let priv = (intToPrivacy :: Int -> Privacy) $ read $ T.unpack t
-  return $ if userPriv == priv then [("checked", "")] else []
+settingAttrSplice
+  :: (Read a, Eq b)
+  => (a -> b)
+  -> RuntimeSplice AppHandler b
+  -> AttrSplice AppHandler
+settingAttrSplice f n t = do
+  val <- n
+  let val' = f $ read $ T.unpack t
+  return $ if val == val' then [("checked", "")] else []
 
 hasSplice
   :: RuntimeSplice AppHandler Bool

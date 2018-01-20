@@ -15,9 +15,51 @@
 	</p>
 	<p>
 	  Columns:
-	  <input type="radio" h:columns="1" name="set_columns" id="one" value="1"><label for="one">1</label>
-	  <input type="radio" h:columns="2" name="set_columns" id="two" value="2"><label for="two">2</label>
-	  <input type="radio" h:columns="3" name="set_columns" id="three" value="3"><label for="three">3</label>
+	  <input type="radio" h:columns="1" name="set_columns" id="one" value="1"/><label for="one">1</label>
+	  <input type="radio" h:columns="2" name="set_columns" id="two" value="2"/><label for="two">2</label>
+	  <input type="radio" h:columns="3" name="set_columns" id="three" value="3"/><label for="three">3</label>
+	</p>
+	<h3>Update options</h3>
+	<p>
+	  These used to be embedded on the updates page itself.
+	</p>
+	<p>
+	  Redirect type:
+	  <input type="radio" h:holdBookmark="True" name="hold_bookmark" id="b_move" value="0"/>
+	  <label for="b_move">Set bookmark on the newest comic page on redirect</label>
+	  <input type="radio" h:holdBookmark="False" name="hold_bookmark" id="b_hold" value="1"/>
+	  <label for="b_hold">Do not move the bookmark</label>
+	</p>
+	<p>
+	  Bookmark sort order.
+	</p>
+	<p>
+	  <ul class="unmarked">
+	    <li>
+	      <input type="radio" h:sortBookmark="0" name="bookmark_sort" id="b_desc" value="0"/>
+	      <label for="b_desc">Most unread first</label>
+	    </li>
+	    <li>
+	      <input type="radio" h:sortBookmark="1" name="bookmark_sort" id="b_asc" value="1"/>
+	      <label for="b_asc">Fewest unread first</label>
+	    </li>
+	    <li>
+	      <input type="radio" h:sortBookmark="2" name="bookmark_sort" id="b_alph" value="2"/>
+	      <label for="b_alph">Alphabetical</label>
+	    </li>
+	    <li>
+	      <input type="radio" h:sortBookmark="3" name="bookmark_sort" id="b_upd" value="3"/>
+	      <label for="b_upd">Most recently updated first</label>
+	    </li>
+	    <li>
+	      <input type="radio" h:sortBookmark="4" name="bookmark_sort" id="b_upd_desc" value="4"/>
+	      <label for="b_upd_desc">Most recently updated last</label>
+	    </li>
+	  </ul>
+	  <!-- </p> Somehow, the parser gets mad if I put the closing tag here. -->
+	<p>
+	  <input type="checkbox" name="offset_bookmark_by_one" h:offsetMode="True" id="b_offset" value="1"/>
+	  <label for="b_offset">Offset bookmarks backwards by one page</label>
 	</p>
 	<p>
 	  <input name="editacc_unpriv" value="Update" type="submit"/>

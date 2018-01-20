@@ -49,13 +49,18 @@ getAccountSettings u = runExceptT $ do
               <*> DE.value DE.bool
               <*> DE.nullableValue DE.text
               <*> DE.nullableValue DE.text
+              <*> (BookmarkOptions
+                   <$> DE.value DE.int4
+                   <*> DE.value DE.bool
+                   <*> DE.value DE.bool)
     decode2 = ProviderData
               <$> DE.value DE.text
               <*> DE.value DE.text
               <*> DE.nullableValue DE.text
     sql1 = "SELECT privacy, \
            \uid IN (SELECT uid FROM login_method_passwd WHERE uid IS NOT NULL), \
-           \email, writeup FROM users WHERE uid=$1"
+           \email, writeup, bookmark_sort, offset_bookmark_by_one, bookmark_sort \
+           \FROM users WHERE uid=$1"
     sql2 = "SELECT name, display_name, identification FROM oauth2_provider LEFT JOIN \
            \(SELECT identification, opid FROM login_method_oauth2 WHERE uid=$1) AS x \
            \USING (opid) ORDER BY display_name"
@@ -75,11 +80,17 @@ updateUnpriv
 updateUnpriv u a = run $ query (u, a) stmt
   where
     stmt = statement sql encode DE.unit True
-    encode = contrazip2 (EN.value EN.int4)
-             ((contramap newWindows (EN.value EN.bool)) <>
-              (contramap (fromIntegral . rows') (EN.value EN.int4)) <>
-              (contramap (columnsToInt . columns') (EN.value EN.int4)))
-    sql = "UPDATE users SET new_windows=$2, display_rows=$3, display_columns=$4 WHERE uid=$1"
+    encode = contrazip2 (EN.value EN.int4) $ mconcat
+             [ newWindows >$< EN.value EN.bool
+             , rows' >$< EN.value EN.int4
+             , columnsToInt . columns' >$< EN.value EN.int4
+             , holdBookmark . bookmarkSettings' >$< EN.value EN.bool
+             , bookmarkSort . bookmarkSettings' >$< EN.value EN.int4
+             , offsetMode . bookmarkSettings' >$< EN.value EN.bool
+             ]
+    sql = "UPDATE users SET new_windows=$2, display_rows=$3, \
+          \display_columns=$4, hold_bookmark=$5, bookmark_sort=$6, \
+          \offset_bookmark_by_one=$7 WHERE uid=$1"
 
 
 updatePriv
