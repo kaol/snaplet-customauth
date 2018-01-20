@@ -56,7 +56,7 @@ routes = do
         , ("/s/dropsubmit/:sid", dropSubmit)
         , ("/s/viewsubmitbanner/:sid", viewSubmitBanner)
         ]
-  let specialTemplates = ["account.html", "newuser.html", "cinfo"]
+  let specialTemplates = ["account.html", "newuser.html", "include/cinfo"]
   templateRoutes <-
     (map fromString .
      filter (not . (`elem` specialTemplates)) .
@@ -72,7 +72,7 @@ routes = do
         accountUpdateHandler >> cRender "account.html")
     , ("newuser.html", authHandler False $
         mayCreateAccount $ cRender "newuser.html")
-    , ("cinfo", authHandler True $ cRender "cinfo")
+    , ("include/cinfo", authHandler True $ cRender "include/cinfo")
     , ("", ifTop $ authHandler False $ cRender "index")
     , ("index.html", authHandler False $ cRender "index")
     ]

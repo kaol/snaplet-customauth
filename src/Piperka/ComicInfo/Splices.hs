@@ -104,7 +104,7 @@ renderExists deadPage = withSplices runChildren $ do
     ((if deadPage then "deadinfo.html?cid=" else "info.html?cid=") <>) .
     T.pack . show . cid
   "related" ## const $ return mempty -- TODO
-  "comicInfo" ## \n -> withSplices (callTemplate "cinfo")
+  "comicInfo" ## \n -> withSplices (callTemplate "/include/cinfo")
                        comicInfoSplices n
   "ifSubscribed" ## \n -> do
     nodes <- X.elementChildren <$> getParamNode
