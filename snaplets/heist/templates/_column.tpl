@@ -18,8 +18,8 @@
 	</li>
       </h:holdbookmark>
       <h:holdbookmark check="False">
-	<li>
-	  <h:externA h:class="" href="info.html?redir=${h:cid}&amp;csrf_ham=${h:csrf}${h:offsetBackParam}"><h:title/></h:externA>
+	<li h:class="">
+	  <h:externA href="info.html?redir=${h:cid}&amp;csrf_ham=${h:csrf}${h:offsetBackParam}"><h:title/></h:externA>
 	  (<h:new/> new)
 	</li>
       </h:holdbookmark>
