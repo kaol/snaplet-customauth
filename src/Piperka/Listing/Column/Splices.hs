@@ -5,7 +5,10 @@
 
 module Piperka.Listing.Column.Splices (listingColumnSplices) where
 
+import Control.Error.Util (bool)
+import Data.Map.Syntax
 import Data.Maybe
+import Data.Monoid
 import Data.Text (pack, unpack)
 import qualified Data.Vector as V
 import qualified HTMLEntities.Text as HTML
@@ -14,7 +17,6 @@ import Heist.Compiled as C
 import Heist.Compiled.LowLevel as C
 import Heist.Compiled.Extra as C
 import Text.XmlHtml
-import Data.Map.Syntax
 
 import Application hiding (prefs)
 import Piperka.Listing.Types hiding (listing', listing'')
@@ -62,18 +64,21 @@ renderMode mode runtime = do
                      ]
       C.codeGen tpl
   where
-    paramsL = (ListingMode, listingItemSplices, extractListing)
-    paramsU = (UserMode, userListingItemSplices, extractUserListing)
-    paramsP = (UpdateMode, updateListingItemSplices, extractUpdateListing)
-    mkColumnSplices (itemMode, itemSplices, extract) = do
+    paramsL = (ListingMode, mempty, listingItemSplices, extractListing)
+    paramsU = (UserMode, mempty, userListingItemSplices, extractUserListing)
+    paramsP = (UpdateMode, updateListingItemAttrSplices
+              , updateListingItemSplices, extractUpdateListing)
+    mkColumnSplices (itemMode, itemAttrSplices, itemSplices, extract) = do
       promise <- C.newEmptyPromise
       tpl <- C.deferMap (return . fst)
              (let withUpdateSplices spl =
                     C.deferMap (return . snd) (C.withSplices spl updateListingSplices)
                     (C.getPromise promise) in
               (case itemMode of UpdateMode -> withUpdateSplices
-                                _ -> id) . (C.withSplices C.runChildren
-                                            (columnSplices mode itemMode itemSplices)))
+                                _ -> id) .
+               (C.withSplices C.runChildren
+                 (columnSplices mode itemMode $
+                  C.manyWith C.runChildren itemSplices itemAttrSplices)))
              (C.getPromise promise)
       return $ \param f -> maybe (return mempty)
                            (\lst -> C.putPromise promise (f lst, param) >> return tpl) $
@@ -82,9 +87,9 @@ renderMode mode runtime = do
 columnSplices
   :: ListingMode
   -> ListingItemMode
-  -> Splices (RuntimeSplice AppHandler a -> Splice AppHandler)
+  -> RuntimeAppHandler (V.Vector a)
   -> Splices (RuntimeSplice AppHandler [(Int, (V.Vector a, Int))] -> Splice AppHandler)
-columnSplices mode itemMode itemSplices = "column" ## \runtime -> do
+columnSplices mode itemMode itemsAction = "column" ## \runtime -> do
   colNum <- read . unpack . fromJust . getAttribute "column" <$>
             getParamNode
   mayDeferMap (return . lookup colNum)
@@ -95,7 +100,7 @@ columnSplices mode itemMode itemSplices = "column" ## \runtime -> do
                        runtime'
         _ -> id) $
       C.withSplices (C.callTemplate "_column")
-      (singleColumnSplices mode itemMode itemSplices) $
+      (singleColumnSplices mode itemMode itemsAction) $
       fmap fst runtime') runtime
 
 updateListingSplices
@@ -106,15 +111,14 @@ updateListingSplices = do
     offset <- offsetMode . getUpdateParam <$> runtime
     return $ if offset then "&offset_back=1" else ""
 
-
 singleColumnSplices
   :: ListingMode
   -> ListingItemMode
-  -> Splices (RuntimeSplice AppHandler a -> Splice AppHandler)
+  -> RuntimeAppHandler (V.Vector a)
   -> Splices (RuntimeSplice AppHandler (V.Vector a) -> Splice AppHandler)
-singleColumnSplices mode itemMode itemSplices = do
+singleColumnSplices mode itemMode itemsAction = do
   "listingMode" ## renderSingleColumn mode
-  "item" ## renderItem itemMode itemSplices
+  "item" ## \n -> renderItem itemMode (itemsAction n)
   "listingStdItem" ## const $ C.callTemplate "_listingStdItem"
 
 renderSingleColumn
@@ -130,15 +134,14 @@ renderSingleColumn mode _ = do
 
 renderItem
   :: ListingItemMode
-  -> Splices (RuntimeSplice AppHandler a -> Splice AppHandler)
-  -> RuntimeSplice AppHandler (V.Vector a)
   -> Splice AppHandler
-renderItem itemMode itemSplices runtime = do
+  -> Splice AppHandler
+renderItem itemMode itemsSplice = do
   allowedMode :: ListingItemMode <- read . unpack . fromJust .
                                     getAttribute "type" <$> getParamNode
   if (itemMode /= allowedMode)
     then return $ C.yieldPure mempty
-    else C.manyWithSplices C.runChildren itemSplices runtime
+    else itemsSplice
 
 listingItemSplices
   :: Splices (RuntimeSplice AppHandler ListingItem -> Splice AppHandler)
@@ -160,3 +163,9 @@ updateListingItemSplices = mapV (C.pureSplice . C.textSplice) $ do
   "title" ## HTML.text . title . listing
   "cid" ## pack . show . cid . listing
   "new" ## pack . show . new
+  "directLink" ## HTML.text . fromMaybe "" . directLink
+
+updateListingItemAttrSplices
+  :: Splices (RuntimeSplice AppHandler UpdateListingItem -> AttrSplice AppHandler)
+updateListingItemAttrSplices = do
+  "class" ## \n t -> (\x -> [("class", x)]) . ($t) . bool id (<> " nsfw") . nsfw <$> n

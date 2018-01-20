@@ -10,7 +10,7 @@ import Piperka.Listing
 import Piperka.Listing.Types
 import qualified Piperka.Listing.Types.Ordering as L (Ordering(..))
 import qualified Piperka.Profile.Types as PT
-import Piperka.Update.Types (UpdateOptions)
+import Piperka.Update.Types (UpdateOptions, holdBookmark, offsetMode)
 import Piperka.Update.Statements
 import Piperka.Profile.Statements
 import Piperka.Listing.Statements
@@ -96,7 +96,11 @@ getListing Update _ offset limit ux =
       updateOptions :: UpdateOptions <- ExceptT $ run $ query uid' updateOptionsFetch
       let ord = bookmarkSort updateOptions
       fmap (UpdateParam updateOptions) $
-        ExceptT $ run $ query (uid', limit, offset) $ updatesFetch ord
+        ExceptT $ run $ if holdBookmark updateOptions then
+                          query (uid', limit, offset, offsetMode updateOptions) $
+                          updatesDirectLinkFetch ord
+                        else
+                          query (uid', limit, offset) $ updatesFetch ord
     return $ either (Left . SqlError) Right res
 
 getListing Graveyard _ offset limit _ =

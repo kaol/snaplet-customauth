@@ -33,6 +33,8 @@ data UserListingItem = UserListingItem
 
 data UpdateListingItem = UpdateListingItem
   { new :: Int32
+  , nsfw :: Bool
+  , directLink :: Maybe Text
   , listing'' :: ListingItem
   } deriving (Show, Eq)
 

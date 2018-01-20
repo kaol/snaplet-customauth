@@ -12,14 +12,14 @@
   <ul class="list">
     <h:item type="UpdateMode">
       <h:holdbookmark check="True">
-	<li class="booklink" id="c${h:cid}">
-	  <h:externA href="TODO"><h:title/></h:externA>
+	<li h:class="booklink" id="c${h:cid}">
+	  <h:externA href="${h:directLink}"><h:title/></h:externA>
 	  (<h:new/> new)
 	</li>
       </h:holdbookmark>
       <h:holdbookmark check="False">
 	<li>
-	  <h:externA href="info.html?redir=${h:cid}&amp;csrf_ham=${h:csrf}${h:offsetBackParam}"><h:title/></h:externA>
+	  <h:externA h:class="" href="info.html?redir=${h:cid}&amp;csrf_ham=${h:csrf}${h:offsetBackParam}"><h:title/></h:externA>
 	  (<h:new/> new)
 	</li>
       </h:holdbookmark>

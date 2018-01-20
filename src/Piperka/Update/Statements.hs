@@ -27,7 +27,6 @@ updateOptionsRow =
   <*> DE.value DE.bool
   <*> DE.value DE.bool
 
---updateOptionsFetch :: Query Int32 (Maybe (Int32, UpdateOptions))
 updateOptionsFetch :: Query Int32 UpdateOptions
 updateOptionsFetch = statement sql encode (DE.singleRow updateOptionsRow) True
   where

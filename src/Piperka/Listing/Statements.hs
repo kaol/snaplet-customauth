@@ -13,6 +13,7 @@ import Data.Int
 import Data.Maybe
 import Data.Monoid
 import Data.String (IsString)
+import Data.Text (Text)
 import Data.Vector hiding ((++), map)
 import Hasql.Query
 import Prelude hiding (Ordering)
@@ -32,10 +33,12 @@ orderingSqlPart TitleAsc = "ordering_form(title)"
 orderingSqlPart UserUpdates = "num ASC, ordering_form(title)"
 orderingSqlPart UserUpdatesDesc = "num DESC, ordering_form(title)"
 
-updateListingRow :: DE.Row UpdateListingItem
-updateListingRow =
+updateListingRow :: DE.Row (Maybe Text) -> DE.Row UpdateListingItem
+updateListingRow x =
   UpdateListingItem
   <$> DE.value DE.int4
+  <*> DE.value DE.bool
+  <*> x
   <*> listingRow
 
 userListingRow :: DE.Row UserListingItem
@@ -50,9 +53,6 @@ listingRow =
   ListingItem
   <$> DE.value DE.int4
   <*> DE.value DE.text
-
-decodeUpdateListing :: DE.Result (Vector UpdateListingItem)
-decodeUpdateListing = DE.rowsVector updateListingRow
 
 decodeUserListing :: DE.Result (Vector UserListingItem)
 decodeUserListing = DE.rowsVector userListingRow
@@ -88,9 +88,28 @@ updatesFetch :: Ordering -> Query (Int32, Int32, Int32) (Vector UpdateListingIte
 updatesFetch = fromJust . flip lookup table
   where
     table = map (\o -> (o, statement (sql o)
-                           encode3 decodeUpdateListing True)) allOrderings
-    sql o = "SELECT num, cid, title FROM comics \
+                           encode3 (DE.rowsVector $ updateListingRow $ pure Nothing)
+                           True)) allOrderings
+    sql o = "SELECT num, cid IN (SELECT cid FROM comic_tag \
+            \WHERE tagid IN (59,60,12,13,1)), cid, title FROM comics \
             \JOIN comic_remain_frag($1) USING (cid) WHERE num > 0 \
+            \order by " <> (orderingSqlPart o) <> " limit $2 offset $3"
+
+updatesDirectLinkFetch :: Ordering -> Query (Int32, Int32, Int32, Bool) (Vector UpdateListingItem)
+updatesDirectLinkFetch = fromJust . flip lookup table
+  where
+    table = map (\o -> (o, statement (sql o)
+                           (contrazip4 (EN.value EN.int4)
+                            (EN.value EN.int4) (EN.value EN.int4) (EN.value EN.bool))
+                           (DE.rowsVector $ updateListingRow $ DE.nullableValue DE.text)
+                            True)) allOrderings
+    sql o = "SELECT num, cid IN (SELECT cid FROM comic_tag \
+            \WHERE tagid IN (59,60,12,13,1)), \
+            \COALESCE((SELECT url FROM redir_url_and_last($1, cid, \
+            \CASE WHEN $4 THEN -1 ELSE 0 END)), fixed_head, homepage), \
+            \cid, title FROM comics \
+            \JOIN comic_remain_frag($1) USING (cid) \
+            \WHERE num > 0 \
             \order by " <> (orderingSqlPart o) <> " limit $2 offset $3"
 
 profileFetchSubscribed :: Ordering -> Query (Int32, Int32, Int32, Int32) (Vector UserListingItem)
