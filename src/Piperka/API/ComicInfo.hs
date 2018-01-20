@@ -93,7 +93,7 @@ comicInfo =
   where
     sql = "SELECT title, readers, max_ord_of(cid)+1 AS page_count, \
           \(SELECT COUNT(*) FROM page_fragments WHERE cid=c.cid) AS fragment_count, \
-          \homepage, added_on, description, banners.file AS banner, \
+          \homepage, added_on, COALESCE(description, ''), banners.file AS banner, \
           \url_base, url_tail, \
           \(SELECT name FROM updates WHERE cid=c.cid AND ord=0 LIMIT 1) AS first_page, \
           \(SELECT name FROM updates WHERE cid=c.cid AND \

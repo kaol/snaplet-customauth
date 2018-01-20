@@ -44,9 +44,12 @@ renderSubmit ini = do
     tpart = extFormPart ini
     epart = tagFormPart ini
     cidSplices = do
-      "hasCid" ## deferMany $
-        eitherDeferMap (lift . getTitleHomepage) stdSqlErrorSplice
-        (withSplices runChildren cidSplices')
+      "hasCid" ## deferMany $ \n ->
+        withSplices (eitherDeferMap (lift . getTitleHomepage)
+                     stdSqlErrorSplice
+                     (withSplices runChildren cidSplices') n)
+        ("cid" ## pureSplice . textSplice $ T.pack . show) n
+
       "noCid" ## conditionalChildren (const runChildren) isNothing
       "submitForm" ## const $ callTemplate "_submit"
       (mapV (const . return . yieldPureText) $ do
@@ -60,7 +63,6 @@ renderSubmit ini = do
         if mode `elem` match then runChildren else return mempty
 
     cidSplices' = do
-      "cid" ## deferMany (pureSplice . textSplice $ T.pack . show)
       "found" ## deferMany
         (withSplices runChildren
           (mapV (pureSplice . textSplice) $ do
@@ -86,7 +88,8 @@ getTitleHomepage
 getTitleHomepage = run . flip query stmt . fromIntegral
   where
     stmt = statement sql (EN.value EN.int4) (DE.maybeRow decoder) True
-    sql = "SELECT title, homepage, description FROM comics WHERE cid=$1"
+    sql = "SELECT title, homepage, COALESCE(description, '') \
+          \FROM comics WHERE cid=$1"
     decoder = (,,)
       <$> (DE.value DE.text)
       <*> (DE.value DE.text)

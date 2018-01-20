@@ -14,7 +14,7 @@
 	  I'll expand this into some sort of a proper ticketing system
 	  later on.
 	</p>
-	<h:csrfForm>
+	<h:csrfForm class="submitcomic">
 	  <input type="hidden" name="formtype" value="editinfo"/>
 	  <input type="hidden" name="cid" value="${h:cid}"/>
 	  Title: <h:title/>

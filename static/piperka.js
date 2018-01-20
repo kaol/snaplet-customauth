@@ -87,8 +87,8 @@ function setTagsEpedias(rpy) {
 	if (!initialNewtags[tagid])
 	    $('#cat-sel-'+tagid).trigger('change');
     });
-    $.each(rpy.epedias, function(epid, dat) {
-	$('input[name=epedia-entry-'+epid+']').val(dat.entry);
+    $.each(rpy.epedias, function(idx, dat) {
+	$('input[name=epedia-entry-'+dat[0]+']').val(dat[1]);
     });
 }
 
