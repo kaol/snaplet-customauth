@@ -1,25 +1,32 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Piperka.Listing.Header.Splices (listingHeaderSplices) where
+module Piperka.Listing.Header.Splices
+  ( listingHeaderSplices
+  , listingHeaderAttrSplices
+  ) where
 
 import Control.Monad.Trans
+import Data.Maybe
 import Data.Monoid
 import Data.Map.Syntax
+import Data.Text (Text)
+import qualified Data.Text as T
+import Data.Text.Encoding (decodeLatin1, encodeUtf8)
+import Data.Vector (Vector)
 import Heist
 import Heist.Compiled
-import Heist.Compiled.Extra (checkedSplice, checkedAttrSplice)
-import Data.Text.Encoding (decodeLatin1, encodeUtf8)
-import qualified Data.Text as T
+import Heist.Compiled.Extra (checkedSplice, checkedAttrSplice, eitherDeferMap)
 import qualified HTMLEntities.Text as HTML
-import qualified Text.XmlHtml as X
 import Network.HTTP.Types.URI (encodePath)
-import Data.Maybe
 import Snap
+import qualified Text.XmlHtml as X
 
-import Piperka.Util
+import Application
+import Piperka.Error.Splices
+import Piperka.Listing.Header.Query
 import Piperka.Listing.Types
 import Piperka.Profile.Types
-import Application (AppHandler)
+import Piperka.Util
 
 commonHeaderSplices
   :: ListingMode
@@ -44,6 +51,8 @@ commonHeaderSplices mode = do
                lift $ maybe "name" (HTML.text . decodeLatin1) <$>
                getQueryParam "sort"
     withLocalSplices ("sort" ## sortSplice) mempty runChildren
+  "alphabetIndex" ## eitherDeferMap (const $ lift alphabetIndex) stdSqlErrorSplice
+    (withSplices (callTemplate "_alphabetIndex") alphabetIndexSplices)
   where
     mkLink nam = uncurry encodePathToText $
                  (\(p, q) -> (p, ("sort", Just $ encodeUtf8 nam):q)) $
@@ -55,9 +64,6 @@ listingHeaderSplices
   -> Splices (RuntimeSplice AppHandler ListingParam -> Splice AppHandler)
 listingHeaderSplices Profile = commonHeaderSplices Profile <> profileSplices
 listingHeaderSplices mode = commonHeaderSplices mode
---listingHeaderSplices Profile = {-commonHeaderSplices <>-} mapV (. fmap getProfile) $ do
-
---none = const $ return $ yieldRuntime mempty
 
 profileSplices :: Splices (RuntimeSplice AppHandler ListingParam -> Splice AppHandler)
 profileSplices = mapV (. fmap getProfile) $ do
@@ -141,3 +147,16 @@ profileSplices = mapV (. fmap getProfile) $ do
             "isProfile" ## runChildren
             "lnk" ## linkSplice
       withLocalSplices splices mempty $ callTemplate "_sortOptions"
+
+alphabetIndexSplices
+  :: Splices (RuntimeAppHandler (Vector (Text, Int)))
+alphabetIndexSplices = "jumpTo" ## manyWith runChildren
+  ("letter" ## pureSplice . textSplice $ fst)
+  ("href" ## \n _ -> n >>= \n' -> return
+    [("href", "browse.html?offset=" <> (T.pack $ show $ snd n'))])
+
+listingHeaderAttrSplices
+  :: Splices (AttrSplice AppHandler)
+listingHeaderAttrSplices = "guardName" ## const $ do
+  mode <- lift $ getParam "sort"
+  return $ if maybe True (== "name") mode then [] else [("class", "script")]

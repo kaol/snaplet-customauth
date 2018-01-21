@@ -3,6 +3,7 @@
   <h:listing mode="Browse">
     <h:sortOptions/>
     <div class="qsearch_container">
+      <h:alphabetIndex/>
       <h:qSearch/>
       <h:hilightButton/>
     </div>

@@ -234,3 +234,14 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER initial_user_login AFTER INSERT ON users FOR EACH ROW EXECUTE PROCEDURE initial_user_login();
+
+DROP VIEW alphabet_index;
+
+CREATE MATERIALIZED VIEW alphabet_index AS
+ SELECT alphabets.letter,
+    count(*) AS ord
+   FROM (alphabets
+     JOIN ( SELECT ordering_form(comics.title) AS canon
+           FROM comics) s ON ((lower((alphabets.letter)::text) > s.canon)))
+  GROUP BY alphabets.letter
+  ORDER BY alphabets.letter;

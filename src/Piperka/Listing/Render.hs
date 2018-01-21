@@ -45,8 +45,10 @@ success mode n = do
          (C.withSplices (C.callTemplate "_navigate")
           (("apply-content" ## const $ return onlyLst) <>
            (navigateSplices $ listingModeSubscribes mode))) n
-  hd <- withSplices runChildren (listingHeaderSplices mode) $
-        ((\(_, _, x) -> x) . fst <$> n)
+  hd <- withLocalSplices
+        (mapV ($ (((\(_, _, x) -> x) . fst <$> n))) $
+         listingHeaderSplices mode)
+        listingHeaderAttrSplices runChildren
   let content = return $ yieldRuntime $ do
         (_, (useMinimal, _)) <- n
         lst' <- case mode of
