@@ -24,7 +24,7 @@ function loadPage(ord) {
     }
     var page = getPage(ord);
     if (page != undefined) {
-	var fix = $('#fixiframe').attr('checked');
+	var fix = $('#fixiframe').prop('checked');
 	var iframe = $('<iframe src="'+page+'" '+(fix ? ' scrolling="no"' : '')+'/>').data('ord', ord);
 	return iframe;
     }
@@ -47,7 +47,7 @@ function refreshBookmark(rpy) {
 }
 
 function setPage(ord, button, moveforward) {
-    if (cid == undefined || (button != undefined && (visiblepage == undefined || $(button).attr('disabled')))) {
+    if (cid == undefined || (button != undefined && (visiblepage == undefined || $(button).prop('disabled')))) {
 	return undefined;
     }
     var pages = $('#archivedialog').data('pages');
@@ -93,7 +93,7 @@ function setPage(ord, button, moveforward) {
     $('#currentpagemarker').show().appendTo($('#archivedialog tr:eq('+(ord+1)+') .status'));
     $('#pagenum').text(ord+1);
     if (userdata) {
-	if (moveforward && $('#autoupdate').attr('checked') != undefined) {
+	if (moveforward && $('#autoupdate').prop('checked')) {
 	    $.post('/s/uprefs', {bookmark:[cid, ord+1], csrf_ham:csrf_ham}, refreshBookmark, 'json');
 	} else {
 	    refreshBookmark('keep');
@@ -105,9 +105,9 @@ function setPage(ord, button, moveforward) {
     if (button != undefined || moveforward) {
 	centerDialog();
     }
-    if ($('#fixiframe').attr('checked')) {
+    if ($('#fixiframe').prop('checked')) {
 	iframe.css('height', $('#fixheight span').text());
-	$('#reader').focus().scrollTop($('#lockselect').attr('checked') ? $('#lockheight').attr('value') : 0);
+	$('#reader').focus().scrollTop($('#lockselect').prop('checked') ? $('#lockheight').attr('value') : 0);
     } else {
 	iframe.focus();
     }
@@ -166,13 +166,13 @@ $(document).ready(function(){
     var navigationHeight = $('#navigation').innerHeight();
     $('#moreoptions').mouseleave(function(){
 	$(this).hide()
-	if ($('#fixiframe').attr('checked')) {
+	if ($('#fixiframe').prop('checked')) {
 	    $('#reader').focus();
 	}
     });
     $('#logo').mouseenter(function(){$('#moreoptions').show()});
     $(window).on('resize', maximizeReader).on('keydown', function(e) {
-	if ($('#arrownavigate').attr('checked')) {
+	if ($('#arrownavigate').prop('checked')) {
 	    if (e.keyCode == $.ui.keyCode.LEFT) {
 		$('#prev').click();
 		return false;
@@ -236,7 +236,7 @@ $(document).ready(function(){
 	$('#autoupdate').removeAttr('checked');
     }
     $('#fixiframe').on('change', function() {
-	if ($(this).attr('checked')) {
+	if ($(this).prop('checked')) {
 	    $('#withfix').show();
 	    $('#reader').css('overflow-y', 'auto');
 	} else {
@@ -248,7 +248,7 @@ $(document).ready(function(){
     });
     $('#fixheight button').on('click', function(){
 	var reader = $('#reader');
-	var height = $('#fixheight input').attr('value');
+	var height = $('#fixheight input').val();
 	if (height < reader.height()) {
 	    height = reader.height();
 	}
@@ -259,7 +259,7 @@ $(document).ready(function(){
     $('#lockselect').on('change', function() {
 	var reader = $('#reader');
 	var lockheight = $('#lockheight');
-	if ($(this).attr('checked')) {
+	if ($(this).prop('checked')) {
 	    reader.off('scroll');
 	} else {
 	    reader.on('scroll', function() {

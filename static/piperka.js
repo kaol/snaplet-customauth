@@ -7,7 +7,7 @@ cid = cid != null ? cid[1] : null;
     $.fn.tagSelect = function() {
 	$(this).on('change', function(){
 	    $('.maincategory').hide();
-	    var id = 'cat-'+$(this).find(':selected').attr('value');
+	    var id = 'cat-'+$(this).find(':selected').val();
 	    $('#'+id).show();
 	});
 	return this;
@@ -566,15 +566,15 @@ $(document).ready(function(){
     });
 
     // Account management field disables and enables
-    var oldPasswdInput = $('input[name="oldpasswd"]');
+    var oldPasswdInput = $('input[name="_password"]');
     $('#authenticate_with').on('change', function() {
-	if ($(this).find(':selected').attr('value') == 'Password') {
+	if ($(this).val() == 'Password') {
 	    oldPasswdInput.removeAttr('disabled');
 	} else {
 	    oldPasswdInput.attr('disabled', 1);
 	}
     });
-    var passwdInput = $('input[name="newpasswd"], input[name="newpasswd_again"]');
+    var passwdInput = $('input[name="new_passwd"], input[name="new_passwd_retype"]');
     $('#only_oauth2').on('change', function() {
 	var checkbox = this;
 	if (this.checked) {
