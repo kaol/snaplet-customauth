@@ -72,8 +72,8 @@ profileOtherDataFetch = statement sql encode (DE.maybeRow decodeOtherProfile) Tr
           \uid, name, perm, privacy, writeup, (totals).\"1\", (totals).\"2\" FROM \
           \(SELECT me.privacy AS rprivacy, \
           \(me.uid, them.uid) IN (SELECT uid, followee \
-          \ FROM follow_permission) AS rperm \
-          \me.privacy=1 AND them.privay=2 AS titfortat, \
+          \ FROM follow_permission) AS rperm, \
+          \me.privacy=1 AND them.privacy=2 AS titfortat, \
           \(me.uid, them.uid) IN (SELECT uid, interest \
           \ FROM follower) AS interest, \
           \them.uid AS uid, them.name, \
