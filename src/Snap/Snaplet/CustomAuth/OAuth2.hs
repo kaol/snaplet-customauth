@@ -3,14 +3,11 @@ module Snap.Snaplet.CustomAuth.OAuth2
     OAuth2Settings(..)
   , AuthFailure(Action)
   , OAuth2Failure(..)
-  , Provider(..)
   , OAuth2Stage(..)
-  , parseProvider
   , addOAuth2Splices
   , oauth2Init
   , saveAction
   , redirectToProvider
-  , getOAuth2Provider
   )
   where
 

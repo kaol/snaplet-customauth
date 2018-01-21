@@ -17,7 +17,6 @@ import Data.Maybe (listToMaybe, fromMaybe, catMaybes)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Snap
-import Snap.Snaplet.CustomAuth.OAuth2 (Provider, parseProvider)
 import Snap.Snaplet.Session
 import Text.HTML.TagSoup
 
@@ -25,6 +24,7 @@ import Application
 import Piperka.Account.Types
 import Piperka.Account.Query
 import Piperka.Listing.Types (intToColumns)
+import Piperka.OAuth2.Types
 import Piperka.Profile.Types (intToPrivacy)
 import Piperka.Util (maybeParseInt, maybeDecodeText, firstSuccess)
 

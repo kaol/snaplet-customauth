@@ -13,7 +13,6 @@ import Data.Text.Encoding
 import Snap hiding (path)
 
 import Snap.Snaplet.CustomAuth.AuthManager
-import Snap.Snaplet.CustomAuth.Types (Provider)
 
 getStateName
   :: Handler b (AuthManager u e b) Text
@@ -31,7 +30,7 @@ getParamText n = (hush . decodeUtf8' =<<) <$> getParam n
 
 setFailure
   :: Handler b (AuthManager u e b) ()
-  -> Maybe Provider
+  -> Maybe Text
   -> Either e (AuthFailure e)
   -> Handler b (AuthManager u e b) ()
 setFailure action provider failure = do

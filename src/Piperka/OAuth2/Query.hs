@@ -11,10 +11,9 @@ import Hasql.Session hiding (run, sql)
 import Hasql.Query
 import Snap
 import Snap.Snaplet.Hasql (Hasql, run)
-import Snap.Snaplet.CustomAuth.OAuth2 (Provider)
 
 import Application
-import Piperka.API.OAuth2.Types (providerOpid)
+import Piperka.OAuth2.Types
 
 reserveOAuth2Identity
   :: Provider

@@ -7,10 +7,10 @@ import Data.Int
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import qualified Hasql.Session as S
-import Snap.Snaplet.CustomAuth.OAuth2 (Provider)
 
 import Piperka.Listing.Types (ViewColumns(..))
 import Piperka.Profile.Types (Privacy(..))
+import Piperka.OAuth2.Types
 
 data BookmarkOptions = BookmarkOptions
   { bookmarkSort :: Int32

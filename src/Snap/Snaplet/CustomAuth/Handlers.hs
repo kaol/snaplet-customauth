@@ -14,6 +14,7 @@ import Control.Monad.Trans
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import Control.Monad.State
+import qualified Data.HashMap.Lazy as M
 import Data.Maybe
 import Data.Monoid
 import qualified Data.Text as T
@@ -122,7 +123,7 @@ authInit
   -> AuthSettings
   -> SnapletInit b (AuthManager u e b)
 authInit oa s = makeSnaplet (view authName s) "Custom auth" Nothing $ do
-  maybe (return ()) oauth2Init oa
+  ps <- maybe (return M.empty) oauth2Init oa
   return $ AuthManager
     { activeUser = Nothing
     , sessionCookieName = s ^. authSessionCookieName
@@ -131,6 +132,7 @@ authInit oa s = makeSnaplet (view authName s) "Custom auth" Nothing $ do
     , stateStore' = maybe (error "oauth2 hooks not defined") stateStore oa
     , oauth2Provider = Nothing
     , authFailData = Nothing
+    , providers = ps
     }
 
 isLoggedIn :: UserData u => Handler b (AuthManager u e b) Bool

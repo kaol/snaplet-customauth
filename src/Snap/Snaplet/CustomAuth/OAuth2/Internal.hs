@@ -8,7 +8,6 @@ module Snap.Snaplet.CustomAuth.OAuth2.Internal
   ( oauth2Init
   , saveAction
   , redirectToProvider
-  , getOAuth2Provider
   ) where
 
 import Control.Error.Util hiding (err)
@@ -22,12 +21,12 @@ import qualified Data.Binary
 import Data.Binary (Binary)
 import Data.Binary.Orphans ()
 import qualified Data.ByteString.Base64
-import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Lazy (toStrict, fromStrict)
 import Data.Char (chr)
-import qualified Data.Configurator
-import Data.HashMap.Lazy (HashMap, lookup)
-import Data.Maybe (isJust, isNothing)
+import qualified Data.Configurator as C
+import Data.HashMap.Lazy (HashMap)
+import qualified Data.HashMap.Lazy as M
+import Data.Maybe (isJust, isNothing, catMaybes)
 import Data.Monoid
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -40,7 +39,6 @@ import Snap hiding (path)
 import Snap.Snaplet.Session
 import System.Random
 import URI.ByteString
-import URI.ByteString.QQ
 
 import Snap.Snaplet.CustomAuth.AuthManager
 import Snap.Snaplet.CustomAuth.Types hiding (name)
@@ -50,59 +48,72 @@ import Snap.Snaplet.CustomAuth.Util (getStateName, getParamText, setFailure)
 oauth2Init
   :: IAuthBackend u i e b
   => OAuth2Settings u i e b
-  -> Initializer b (AuthManager u e b) ()
+  -> Initializer b (AuthManager u e b) (HashMap Text Provider)
 oauth2Init s = do
+  cfg <- getSnapletUserConfig
+  root <- getSnapletRootURL
+  hostname <- liftIO $ C.require cfg "hostname"
+  scheme <- liftIO $ C.lookupDefault "http" cfg "protocol"
+  names <- liftIO $ C.lookupDefault [] cfg "oauth2.providers"
+  -- TODO: use discovery
+  let makeProvider name = let
+        name' = "oauth2." <> name
+        lk = MaybeT . C.lookup cfg . (name' <>)
+        lku n = lk n >>=
+          MaybeT . return . hush . parseURI strictURIParserOptions . encodeUtf8
+        callback = URI (Scheme scheme)
+                   (Just $ Authority Nothing (Host hostname) Nothing)
+                   ("/" <> root <> "/oauth2callback/" <> (encodeUtf8 name))
+                   mempty Nothing
+        in Provider
+           <$> (MaybeT $ return $ pure $ T.toLower $ name)
+           <*> (MaybeT $ return $ pure $ Nothing)
+           <*> lk ".scope"
+           <*> lku ".endpoint.identity"
+           <*> lk ".identityField"
+           <*> (OAuth2
+                <$> lk ".clientId"
+                <*> lk ".clientSecret"
+                <*> lku ".endpoint.auth"
+                <*> lku ".endpoint.access"
+                <*> (pure $ Just callback))
   addRoutes $ mapped._2 %~ (bracket s) $
     [ ("oauth2createaccount", oauth2CreateAccount s)
     , ("oauth2callback/:provider", oauth2Callback s)
-    , ("oauth2login/:provider", redirectLogin s)
+    , ("oauth2login/:provider", redirectLogin)
     ]
-
-getProvider
-  :: Handler b (AuthManager u e b) (Maybe Provider)
-getProvider = (parseProvider =<<) <$> getParam "provider"
+  liftIO $ M.fromList . map (\x -> (providerName x, x)) . catMaybes <$>
+    (mapM (runMaybeT . makeProvider) names)
 
 redirectLogin
-  :: OAuth2Settings u i e b
-  -> Handler b (AuthManager u e b) ()
-redirectLogin s = do
-  provider <- ((\x -> do
-                   p <- parseProvider x
-                   guard $ p `elem` (enabledProviders s)
-                   return p) =<<) <$>
-              getParam "provider"
+  :: Handler b (AuthManager u e b) ()
+redirectLogin = do
+  provs <- gets providers
+  provider <- (flip M.lookup provs =<<) <$> getParamText "provider"
   maybe pass toProvider provider
   where
     toProvider p = do
-      success <- redirectToProvider p
+      success <- redirectToProvider $ providerName p
       if success then return () else pass
 
 getRedirUrl
   :: Provider
   -> Text
-  -> OAuth2
   -> URI
-getRedirUrl p token o =
-  appendQueryParams (("state", encodeUtf8 token):scope) $ authorizationUrl o
-  where
-    scope =  [("scope", scopeLoc)]
-    scopeLoc = case p of
-      Google -> "profile"
-      Reddit -> "identity"
-      Github -> "read:user"
+getRedirUrl p token =
+  appendQueryParams [("state", encodeUtf8 token)
+                    ,("scope", encodeUtf8 $ scope p)] $ authorizationUrl $ oauth p
 
 redirectToProvider
-  :: Provider
+  :: Text
   -> Handler b (AuthManager u e b) Bool
-redirectToProvider provider = do
-  param <- buildOAuth2Param provider
-  maybe (return False) (\x -> redirectToProvider' provider x >> return True) param
+redirectToProvider pName = do
+  maybe (return False) redirectToProvider' =<< M.lookup pName <$> gets providers
 
 redirectToProvider'
   :: Provider
-  -> OAuth2
-  -> Handler b (AuthManager u e b) ()
-redirectToProvider' provider param = do
+  -> Handler b (AuthManager u e b) Bool
+redirectToProvider' provider = do
   -- Generate a state token and store it in SessionManager
   store <- gets stateStore'
   stamp <- liftIO $ (T.pack . show) <$> getCurrentTime
@@ -117,45 +128,8 @@ redirectToProvider' provider param = do
     setInSession name token
     setInSession (name <> "_stamp") stamp
     commitSession
-  let redirUrl = serializeURIRef' $ getRedirUrl provider token param
+  let redirUrl = serializeURIRef' $ getRedirUrl provider token
   redirect' redirUrl 303
-
-buildOAuth2Param
-  :: Provider
-  -> Handler b (AuthManager u e b) (Maybe OAuth2)
-buildOAuth2Param provider = do
-  cfg <- getSnapletUserConfig
-  root <- getSnapletRootURL
-  liftIO $ runMaybeT $ do
-    let providerName = T.toLower $ T.pack $ show provider
-        lookupProvider x = MaybeT $ Data.Configurator.lookup cfg (providerName <> x)
-    hostname <- MaybeT $ Data.Configurator.lookup cfg "hostname"
-    k <- lookupProvider ".key"
-    s <- lookupProvider ".secret"
-    let callback = URI (Scheme "http")
-                   (Just $ Authority Nothing (Host hostname) Nothing)
-                   ("/" <> root <> "/oauth2callback/" <> (C8.pack $ show provider)) mempty Nothing
-        (endpoint1, endpoint2, _) = endpoints provider
-    return $ OAuth2
-      { oauthClientId = k
-      , oauthClientSecret = s
-      , oauthCallback = Just callback
-      , oauthOAuthorizeEndpoint = endpoint1
-      , oauthAccessTokenEndpoint = endpoint2
-      }
-
-endpoints
-  :: Provider
-  -> (URI, URI, URI)
-endpoints Google = ( [uri|https://accounts.google.com/o/oauth2/auth|]
-                   , [uri|https://www.googleapis.com/oauth2/v4/token|]
-                   , [uri|https://www.googleapis.com/oauth2/v3/userinfo|])
-endpoints Reddit = ( [uri|https://www.reddit.com/api/v1/authorize|]
-                   , [uri|https://www.reddit.com/api/v1/access_token|]
-                   , [uri|https://oauth.reddit.com/api/v1/me|])
-endpoints Github = ( [uri|https://github.com/login/oauth/authorize|]
-                   , [uri|https://github.com/login/oauth/access_token|]
-                   , [uri|https://api.github.com/user|])
 
 getUserInfo
   :: OAuth2Settings u i e b
@@ -163,27 +137,28 @@ getUserInfo
   -> AccessToken
   -> Handler b (AuthManager u e b) (Maybe Text)
 getUserInfo s provider token = do
-  let endpoint = (\(_, _, x) -> x) $ endpoints provider
+  let endpoint = identityEndpoint provider
   let mgr = httpManager s
   liftIO $ runMaybeT $ do
     dat <- MaybeT $ hush <$> authGetJSON' mgr token endpoint
-    MaybeT . return $ lookupProviderInfo provider dat
+    MaybeT . return $ lookupProviderInfo dat
   where
     authGetJSON' :: Manager -> AccessToken -> URI
                  -> IO (OAuth2Result (HashMap Text Value) (HashMap Text Value))
     authGetJSON' = authGetJSON
-    lookup' a b = maybeText =<< lookup a b
+    lookup' a b = maybeText =<< M.lookup a b
     maybeText (String x) = Just x
     maybeText _ = Nothing
-    lookupProviderInfo Google dat = lookup' "sub" dat
-    lookupProviderInfo Reddit dat = lookup' "name" dat
-    lookupProviderInfo Github dat = lookup' "name" dat
+    lookupProviderInfo dat = lookup' (identityField provider) dat
 
 oauth2Callback
   :: IAuthBackend u i e b
   => OAuth2Settings u i e b
   -> Handler b (AuthManager u e b) ()
-oauth2Callback s = getProvider >>= maybe pass (oauth2Callback' s)
+oauth2Callback s = do
+  provs <- gets providers
+  maybe pass (oauth2Callback' s) =<<
+    ((flip M.lookup provs =<<) <$> getParamText "provider")
 
 oauth2Callback'
   :: IAuthBackend u i e b
@@ -191,12 +166,11 @@ oauth2Callback'
   -> Provider
   -> Handler b (AuthManager u e b) ()
 oauth2Callback' s provider = do
-  when (not $ provider `elem` (enabledProviders s)) pass
   name <- getStateName
   let ss = stateStore s
       mgr = httpManager s
   res <- runExceptT $ do
-    param <- noteT ConfigurationError $ MaybeT $ buildOAuth2Param provider
+    let param = oauth provider
     expiredStamp <- lift $ withTop' ss $
       maybe (return True) (liftIO . isExpiredStamp) =<<
       fmap (read . T.unpack) <$> getFromSession (name <> "_stamp")
@@ -218,7 +192,7 @@ oauth2Callback' s provider = do
       -- TODO: get user id (sub) from idToken in token, if
       -- available. Requires JWT handling.
       MaybeT $ lift $ getUserInfo s provider (accessToken token)
-  either (setFailure ((oauth2Failure s) SCallback) (Just provider) .
+  either (setFailure ((oauth2Failure s) SCallback) (Just $ providerName provider) .
           Right . Create . OAuth2Failure)
     (oauth2Success s provider) res
 
@@ -231,7 +205,7 @@ oauth2Success
   -> Text
   -> Handler b (AuthManager u e b) ()
 oauth2Success s provider token = do
-  key <- getActionKey provider
+  key <- getActionKey $ providerName provider
   store <- gets stateStore'
   name <- getStateName
   act <- withTop' store $ runMaybeT $ do
@@ -239,7 +213,7 @@ oauth2Success s provider token = do
     lift $ deleteFromSession key >> commitSession
     return act
   withTop' store $ do
-    setInSession (name <> "_provider") (T.pack $ show provider)
+    setInSession (name <> "_provider") (providerName provider)
     setInSession (name <> "_token") token
     commitSession
   -- When there's no user defined action stored, treat this as a
@@ -256,15 +230,17 @@ doOauth2Login s provider token = do
   -- Sanity check: See if the user is already logged in.
   recoverSession
   currentUser >>=
-    maybe proceed (const $ setFailure ((oauth2Failure s) SLogin) (Just provider) $
+    maybe proceed (const $ setFailure ((oauth2Failure s) SLogin)
+                   (Just $ providerName provider) $
                    Right $ Create $ OAuth2Failure AlreadyLoggedIn)
   where
     proceed = do
       res <- runExceptT $ do
-        usr <- ExceptT $ (oauth2Login s) provider token
+        usr <- ExceptT $ (oauth2Login s) (providerName provider) token
         maybe (return ()) (lift . setUser) usr
         return usr
-      either (setFailure ((oauth2Failure s) SLogin) (Just provider) . Left)
+      either (setFailure ((oauth2Failure s) SLogin)
+              (Just $ providerName provider) . Left)
         (const $ oauth2LoginDone s) res
 
 isExpiredStamp
@@ -282,7 +258,7 @@ prepareOAuth2Create'
   -> Text
   -> Handler b (AuthManager u e b) (Either (Either e CreateFailure) i)
 prepareOAuth2Create' s provider token =
-  (prepareOAuth2Create s) provider token >>=
+  (prepareOAuth2Create s) (providerName provider) token >>=
   either checkDuplicate (return . Right)
   where
     checkDuplicate e = do
@@ -307,7 +283,7 @@ doResume s provider token d = do
       (hush $ Data.ByteString.Base64.decode $ encodeUtf8 d)
     when (requireUser d' && isNothing user) $ throwE (Right AttachNotLoggedIn)
     u <- ExceptT $ return . either (Left . Left) Right =<<
-      (oauth2Check s) provider token
+      (oauth2Check s) (providerName provider) token
     -- Compare current user with action's stored user
     when (userId /= actionUser d') $
      throwE (Right ActionUserMismatch)
@@ -320,8 +296,9 @@ doResume s provider token d = do
     expired <- liftIO $ isExpiredStamp (actionStamp d')
     when expired $ throwE (Right ActionTimeout)
     return $ savedAction d'
-  either (setFailure ((oauth2Failure s) SAction) (Just provider) . fmap Action)
-    ((resumeAction s) provider token) res
+  either (setFailure ((oauth2Failure s) SAction)
+          (Just $ providerName provider) . fmap Action)
+    ((resumeAction s) (providerName provider) token) res
 
 -- User has successfully signed in via oauth2 and the provider/token
 -- did not match with an existing user.  This is the endpoint for
@@ -332,11 +309,12 @@ oauth2CreateAccount
   -> Handler b (AuthManager u e b) ()
 oauth2CreateAccount s = do
   store <- gets stateStore'
+  provs <- gets providers
   usrName <- ((hush . decodeUtf8') =<<) <$>
     (getParam =<< ("_new" <>) <$> gets userField)
   name <- getStateName
-  provider <- withTop' store $
-    (parseProvider =<<) <$> getFromSession (name <> "_provider")
+  provider <- (flip M.lookup provs =<<) <$>
+    (withTop' store $ getFromSession (name <> "_provider"))
   user <- runExceptT $ do
     -- Sanity check: See if the user is already logged in.
     u <- lift $ recoverSession >> currentUser
@@ -358,24 +336,26 @@ oauth2CreateAccount s = do
   case (user, res) of
     (Right (i,_), Left _) -> cancelPrepare i
     _ -> return ()
-  either (setFailure ((oauth2Failure s) SCreate) provider . fmap Create)
+  either (setFailure ((oauth2Failure s) SCreate) (providerName <$> provider) . fmap Create)
     (oauth2AccountCreated s) res
 
 getActionKey
-  :: Provider
+  :: Text
   -> Handler b (AuthManager u e b) Text
 getActionKey p = do
   path <- maybe "auth" id . hush . decodeUtf8' <$> getSnapletRootURL
   name <- maybe "auth" id <$> getSnapletName
-  return $ "__" <> name <> "_" <> path <> "_action_" <> (T.pack $ show p)
+  return $ "__" <> name <> "_" <> path <> "_action_" <> p
 
 saveAction
   :: (IAuthBackend u i e b, Binary a)
   => Bool
-  -> Provider
+  -> Text
   -> a
   -> Handler b (AuthManager u e b) ()
 saveAction require provider a = do
+  provs <- gets providers
+  guard $ provider `elem` (M.keys provs)
   let d = Data.Binary.encode a
   key <- getActionKey provider
   store <- gets $ stateStore'
@@ -393,7 +373,3 @@ saveAction require provider a = do
   withTop' store $ do
     setInSession key d'
     commitSession
-
-getOAuth2Provider
-  :: Handler b (AuthManager u e b) (Maybe Provider)
-getOAuth2Provider = get >>= return . oauth2Provider

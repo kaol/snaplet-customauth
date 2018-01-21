@@ -22,6 +22,7 @@ import Piperka.Account.Splices
 import Piperka.Account.Types
 import Piperka.Account.Query
 import Piperka.Error.Splices
+import Piperka.OAuth2.Types
 
 renderAccountForm
   :: RuntimeAppHandler MyData
@@ -55,8 +56,9 @@ accountUpdateHandler = do
         case upd of
           Left (Right (NeedsValidation p a)) -> withTop apiAuth $ do
             setUser usr
-            saveAction True p $ AccountPayload a
-            redirectToProvider p
+            let p' = providerName p
+            saveAction True p' $ AccountPayload a
+            redirectToProvider p'
             return ()
           Left (Left e) -> modify $ set accountUpdateError $ Just e
           Right u -> withTop auth (setUser $ full {user = u})

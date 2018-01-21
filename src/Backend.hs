@@ -26,7 +26,6 @@ import Data.Text (Text)
 import Data.UUID
 import Snap
 import Snap.Snaplet.CustomAuth
-import Snap.Snaplet.CustomAuth.OAuth2 (Provider)
 import Snap.Snaplet.Hasql
 import Application
 import Hasql.Query
@@ -35,7 +34,7 @@ import qualified Hasql.Encoders as EN
 import qualified Hasql.Decoders as DE
 import PostgreSQL.ErrorCodes (unique_violation)
 
-import Piperka.API.OAuth2.Types
+import Piperka.OAuth2.Types
 import Piperka.Util (monadicTuple2, getParamText)
 
 encodeLoginPasswd :: EN.Params (T.Text, T.Text)

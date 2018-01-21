@@ -26,10 +26,9 @@ import Hasql.Encoders as EN
 import Hasql.Session hiding (run, sql)
 import Hasql.Query
 import Snap.Snaplet.Hasql (run)
-import Snap.Snaplet.CustomAuth.Types (Provider(..))
 
 import Application
-import Piperka.API.OAuth2.Types
+import Piperka.OAuth2.Types
 import Piperka.Account.Types
 import Piperka.Listing.Types (columnsToInt)
 import Piperka.Profile.Types (intToPrivacy, privacyToInt)

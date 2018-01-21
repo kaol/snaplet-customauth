@@ -15,6 +15,7 @@ module Snap.Snaplet.CustomAuth.AuthManager
 
 import Data.Binary (Binary)
 import Data.ByteString (ByteString)
+import Data.HashMap.Lazy (HashMap)
 import Data.Text (Text)
 import Network.HTTP.Client (Manager)
 
@@ -45,19 +46,19 @@ data AuthManager u e b = forall i. IAuthBackend u i e b => AuthManager
   , userField :: ByteString
   , passwordField :: ByteString
   , stateStore' :: SnapletLens (Snaplet b) SessionManager
-  , oauth2Provider :: Maybe Provider
+  , oauth2Provider :: Maybe Text
   , authFailData :: Maybe (AuthFailure e)
+  , providers :: HashMap Text Provider
   }
 
 data OAuth2Settings u i e b = IAuthBackend u i e b => OAuth2Settings {
-    enabledProviders :: [Provider]
-  , oauth2Check :: Provider -> Text -> Handler b (AuthManager u e b) (Either e (Maybe ByteString))
-  , oauth2Login :: Provider -> Text -> Handler b (AuthManager u e b) (Either e (Maybe u))
+    oauth2Check :: Text -> Text -> Handler b (AuthManager u e b) (Either e (Maybe ByteString))
+  , oauth2Login :: Text -> Text -> Handler b (AuthManager u e b) (Either e (Maybe u))
   , oauth2Failure :: OAuth2Stage -> Handler b (AuthManager u e b) ()
-  , prepareOAuth2Create :: Provider -> Text -> Handler b (AuthManager u e b) (Either e i)
+  , prepareOAuth2Create :: Text -> Text -> Handler b (AuthManager u e b) (Either e i)
   , oauth2AccountCreated :: u -> Handler b (AuthManager u e b) ()
   , oauth2LoginDone :: Handler b (AuthManager u e b) ()
-  , resumeAction :: Provider -> Text -> ByteString -> Handler b (AuthManager u e b) ()
+  , resumeAction :: Text -> Text -> ByteString -> Handler b (AuthManager u e b) ()
   , stateStore :: SnapletLens (Snaplet b) SessionManager
   , httpManager :: Manager
   , bracket :: Handler b (AuthManager u e b) () -> Handler b (AuthManager u e b) ()

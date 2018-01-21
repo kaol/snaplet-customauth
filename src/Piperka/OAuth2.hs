@@ -4,6 +4,7 @@ module Piperka.OAuth2 (piperkaOAuth2) where
 
 import Control.Lens (set)
 import Control.Monad.State
+import Data.Maybe (fromJust)
 import Data.Text (Text)
 import Hasql.Session (Error)
 import Network.HTTP.Client (Manager)
@@ -19,6 +20,7 @@ import Application hiding (httpManager)
 import qualified Backend
 import Piperka.Auth
 import Piperka.Account.Action (actionCallback)
+import Piperka.OAuth2.Types
 import Piperka.OAuth2.Query
 
 piperkaOAuth2
@@ -26,14 +28,13 @@ piperkaOAuth2
   -> Manager
   -> OAuth2Settings MyData AuthID Error App
 piperkaOAuth2 s m = OAuth2Settings {
-    enabledProviders = [ Reddit, Google, Github ]
-  , oauth2Check = Backend.oauth2Check
-  , oauth2Login = Backend.oauth2Login
+    oauth2Check = \p -> Backend.oauth2Check (fromJust $ parseProvider p)
+  , oauth2Login = \p -> Backend.oauth2Login (fromJust $ parseProvider p)
   , oauth2Failure = handleFailure
-  , prepareOAuth2Create = prepareCreate
+  , prepareOAuth2Create = prepareCreate . fromJust . parseProvider
   , oauth2AccountCreated = accountCreated
   , oauth2LoginDone = loginDone
-  , resumeAction = \a b c -> withTop' id $ actionCallback a b c
+  , resumeAction = \a b c -> withTop' id $ actionCallback (fromJust $ parseProvider a) b c
   , stateStore = s
   , httpManager = m
   , bracket = bracketDbOpen

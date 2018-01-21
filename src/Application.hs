@@ -12,7 +12,6 @@ module Application
   , AppHandler
   , RuntimeAppHandler
   , UserID
-  , AuthID
   , WebAuth
   , ApiAuth
   , AnyAuth
@@ -60,7 +59,6 @@ import Piperka.Listing.Types (ViewColumns(..))
 ------------------------------------------------------------------------------
 
 type UserID = Int32
-type AuthID = Int32
 
 data MyData = MyData
   { uid :: UserID

@@ -8,10 +8,11 @@ import Control.Lens.TH
 import Data.Binary
 import Data.Binary.Orphans ()
 import Data.ByteString
-import Data.String (IsString)
 import Data.Text (Text)
 import Data.Time.Clock (UTCTime)
 import GHC.Generics (Generic)
+import Network.OAuth.OAuth2 (OAuth2)
+import URI.ByteString (URI)
 
 data LoginFailure =
   NoSession | SessionRecoverFail | UsernameMissing | PasswordMissing | WrongPasswordOrUsername
@@ -51,12 +52,18 @@ data PasswordFailure = Missing | Mismatch
 data OAuth2Stage = SCallback | SLogin | SCreate | SAction
   deriving (Show, Eq, Read)
 
-data Provider =
-  Google | Reddit | Github
-  deriving (Show, Eq, Ord, Generic)
+data Provider = Provider
+  { providerName :: Text
+  , discovery :: Maybe URI
+  , scope :: Text
+  , identityEndpoint :: URI
+  , identityField :: Text
+  , oauth :: OAuth2
+  }
+  deriving (Show)
 
 data SavedAction = SavedAction {
-    actionProvider :: Provider
+    actionProvider :: Text
   , actionStamp :: UTCTime
   , actionUser :: Maybe ByteString
   -- Is the action expected to match with an ID attached to the user.
@@ -66,20 +73,6 @@ data SavedAction = SavedAction {
   } deriving (Generic)
 
 instance Binary SavedAction
-
-instance Binary Provider
-
-parseProvider
-  :: (Eq s, IsString s)
-  => s
-  -> Maybe Provider
-parseProvider "reddit" = Just Reddit
-parseProvider "Reddit" = Just Reddit
-parseProvider "google" = Just Google
-parseProvider "Google" = Just Google
-parseProvider "github" = Just Github
-parseProvider "Github" = Just Github
-parseProvider _ = Nothing
 
 data AuthUser = AuthUser
   { name :: Text
