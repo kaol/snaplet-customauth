@@ -1,7 +1,4 @@
 var csrf_ham = /csrf_ham=([0-9a-z-]+)/.exec(document.cookie);
-if (!csrf_ham) {
-    csrf_ham = /p_session=([0-9a-z-]+)/.exec(document.cookie)
-}
 csrf_ham = csrf_ham ? csrf_ham[1] : null;
 var cid, visiblepage;
 var userreq, userdata, subscriptions;
@@ -135,7 +132,7 @@ function initcid(newcid) {
     $.when(userreq, comictitlesreq, archive)
 	.then(function(userresp, comictitlesresp, archive){
 	    $('#title').text(comictitles[cid]);
-	    $('#pagetotal').text(archive[0].pages.length);
+	    $('#pagetotal').text(archive.pages.length);
 	    $('#archive,#tocomic').removeAttr('disabled');
 	    $('#archivedialog').on('click', 'tr:has(td)', function(){
 		if ($(this).has('#currentpagemarker').length) {
@@ -154,7 +151,7 @@ function initcid(newcid) {
 	    var ord = 0;
 	    var moveforward = 0;
 	    if (subscriptions && subscriptions[cid]) {
-		subscriptions[cid][2] = archive[0].pages.length-1;
+		subscriptions[cid][2] = archive.pages.length-1;
 		if (subscriptions[cid][1] != undefined) {
 		    moveforward = 1;
 		    ord = subscriptions[cid][1];

@@ -27,26 +27,26 @@ import Piperka.Util (getCid)
 data Archive = Archive {
     url_base :: Text
   , url_tail :: Text
-  , fixed_head :: Text
+  , fixed_head :: Maybe Text
   , homepage :: Text
-  , pages :: Vector (Text, Int32)
+  , pages :: Vector (Maybe Text, Int32)
   } deriving (Generic)
 
 instance ToJSON Archive where
   toEncoding = genericToEncoding defaultOptions
 
-decodeArchiveInfo :: DE.Row (Vector (Text, Int32) -> Archive)
+decodeArchiveInfo :: DE.Row (Vector (Maybe Text, Int32) -> Archive)
 decodeArchiveInfo =
   Archive
   <$> DE.value DE.text
   <*> DE.value DE.text
-  <*> DE.value DE.text
+  <*> DE.nullableValue DE.text
   <*> DE.value DE.text
 
-decodePageInfo :: DE.Row (Text, Int32)
+decodePageInfo :: DE.Row (Maybe Text, Int32)
 decodePageInfo =
   (,)
-  <$> DE.value DE.text
+  <$> DE.nullableValue DE.text
   <*> DE.value DE.int4
 
 dumpArchive :: AppHandler ()

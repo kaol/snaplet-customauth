@@ -13,7 +13,8 @@ function makePageDialog(cid) {
 		    .appendTo(table);
 	    });
 	    table.append($('<tr><td class="status"/></td>'));
-	})
+	    return rpy;
+	});
 }
 
 function centerDialog() {
