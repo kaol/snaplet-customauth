@@ -44,13 +44,12 @@ commonHeaderSplices mode = do
           "lnk" ## linkSplice
     withLocalSplices splices mempty $ callTemplate "_sortOptions"
   "qSearch" ## const $ do
-    mo <- read . T.unpack . fromJust . X.getAttribute "mode" <$> getParamNode
-    let sortSplice = case mo of
+    let sortSplice = case mode of
           Top -> return $ yieldPureText "top"
           _ -> return $ yieldRuntimeText $
                lift $ maybe "name" (HTML.text . decodeLatin1) <$>
                getQueryParam "sort"
-    withLocalSplices ("sort" ## sortSplice) mempty runChildren
+    withLocalSplices ("sort" ## sortSplice) mempty $ callTemplate "_qSearch"
   "alphabetIndex" ## eitherDeferMap (const $ lift alphabetIndex) stdSqlErrorSplice
     (withSplices (callTemplate "_alphabetIndex") alphabetIndexSplices)
   where

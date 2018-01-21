@@ -16,7 +16,7 @@
   <h:end><a class="end" h:href="href">End</a></h:end>
 </div>
 <h:apply-content/>
-<div class="paginate">
+<div class="paginate bottom">
   <h:start><a class="start" h:href="href">First</a></h:start>
   |
   <h:prev><a class="prev" rel="prev" h:href="href">Last</a></h:prev>

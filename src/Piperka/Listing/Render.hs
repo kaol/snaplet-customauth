@@ -58,9 +58,9 @@ success mode n = do
                    return $ if havePerm then lst else mempty
                  _ -> return lst
         codeGen $ if useMinimal then lst' else hd <> lst'
-  withLocalSplices ("apply-content" ## content)
+  withLocalSplices mempty
     (offsetHref $ (fmap (\(a, b, _, _) -> (a, b))) . snd . snd <$> n)
-    (callTemplate "_listingForm")
+    content
 
 renderListing
   :: RuntimeAppHandler (Maybe MyData)
