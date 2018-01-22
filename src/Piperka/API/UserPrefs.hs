@@ -121,7 +121,7 @@ setBookmark (c, bookmark) p = do
   let cid = fromIntegral c
   ord <- case bookmark of
     Page o' ->
-      let ord = fromIntegral $ bool 0 o' (o' < 0)
+      let ord = fromIntegral $ bool 0 o' (o' > 0)
       in (ExceptT $ run $ query (u, cid, ord) $
            statement sql1
            (contrazip3
