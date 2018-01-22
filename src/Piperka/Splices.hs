@@ -11,7 +11,9 @@ module Piperka.Splices
 
 import Heist
 import Heist.Compiled as C
-import Control.Error.Util (note)
+import Control.Error.Util (note, bool)
+import Control.Monad (when)
+import Control.Monad.State
 import Control.Lens
 import Data.DList (DList)
 import qualified Data.Text as T
@@ -19,7 +21,6 @@ import Data.Text.Encoding (encodeUtf8)
 import Snap
 import Control.Applicative ((<|>))
 import Data.Monoid
-import Control.Monad.Trans
 import Snap.Snaplet.CustomAuth
 import Backend()
 import qualified Text.XmlHtml as X
@@ -84,7 +85,9 @@ renderPiperka
   :: AppInit
   -> C.Splice AppHandler
 renderPiperka ini = do
-  xs <- X.childNodes <$> getParamNode
+  node <- getParamNode
+  let ads = maybe True (read . T.unpack) $ X.getAttribute "ads" node
+  let xs = X.childNodes node
   let getInner n = do
         content <- renderContent ini xs $ snd <$> n
         C.withSplices (C.callTemplate "_base")
@@ -102,7 +105,8 @@ renderPiperka ini = do
           (C.withSplices (C.runNodeList xs)
            ((contentSplices' ini) <> ("onlyWithStats" ## const $ return mempty)))
   return $ yieldRuntime $ do
-    useMinimal <- lift $ withTop' id $ view minimal
+    when (not ads) (lift $ modify $ set adsEnabled False)
+    useMinimal <- lift $ view minimal
     codeGen $ if useMinimal then bare else normal
 
 statsSplices
@@ -188,6 +192,11 @@ contentSplices' ini = do
   "providers" ## renderProviders
   "oauth2Create" ## renderOAuth2
   "readers" ## renderReaders
+  "ad" ## const $ do
+    x <- runChildren
+    return $ yieldRuntime $ bool (return mempty) (C.codeGen x) =<<
+      (lift $ view adsEnabled)
+  "adInit" ## const $ callTemplate "_projectWonderful"
 
 loggedInSplices
   :: Splices (RuntimeAppHandler MyData)

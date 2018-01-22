@@ -1,4 +1,4 @@
-<h:piperka>
+<h:piperka ads="False">
   <h:submit mode="Moderate">
     <h:ifLoggedIn>
       <h:ifMod>

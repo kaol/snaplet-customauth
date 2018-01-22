@@ -28,6 +28,7 @@ module Application
   , minimal
   , accountUpdateError
   , actionResult
+  , adsEnabled
   , defaultUserPrefs
   , defaultUserStats
   , getPrefs
@@ -116,6 +117,7 @@ data App = App
   , _minimal :: Bool
   , _accountUpdateError :: Maybe AccountUpdateError
   , _actionResult :: Maybe (Maybe ActionError, Maybe Action)
+  , _adsEnabled :: Bool
   }
 
 data AppInit = AppInit

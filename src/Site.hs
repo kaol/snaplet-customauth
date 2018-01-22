@@ -87,6 +87,7 @@ data ParLabels a b c = L1 a | L2 b | L3 c
 app :: SnapletInit App App
 app = makeSnaplet "piperka" "Piperka application." Nothing $ do
   cfg <- getSnapletUserConfig
+  ads <- liftIO $ Data.Configurator.lookupDefault False cfg "ads"
   conn <- liftIO $ Data.Configurator.lookupDefault "postgresql://kaol@/piperka" cfg "db"
   mgr <- liftIO newTlsManager
   [~(L1 elookup), ~(L2 tlookup), ~(L3 tfp), ~(L3 efp)] <- liftIO $
@@ -119,4 +120,4 @@ app = makeSnaplet "piperka" "Piperka application." Nothing $ do
   d <- nestSnaplet "" db $ hasqlInit conn
   addRoutes =<< (liftIO routes)
   addRoutes staticRoutes
-  return $ App h a a' d m elookup tlookup mgr False False Nothing Nothing
+  return $ App h a a' d m elookup tlookup mgr False False Nothing Nothing ads

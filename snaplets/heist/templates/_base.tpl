@@ -22,7 +22,15 @@
   </head>
 
   <body>
+    <h:ad>
+      <h:adInit/>
+    </h:ad>
     <div id="header" class="hiliteBG">
+      <h:ad>
+	<!-- Project Wonderful Ad Box Code -->
+	<div id="pw_adbox_738_1_0"></div>
+	<!-- End Project Wonderful Ad Box Code -->
+      </h:ad>
       <a href="/">
 	<img id="paprikat" src="/images/paprika.png" alt="Piperka">
       </a>
@@ -63,11 +71,23 @@
 	      <br/><a href="/newuser.html">Create account</a>
 	      <br/><a href="/lost.html">Lost password?</a>
 	    </h:ifLoggedOut>
+	    <h:ad>
+	      <!-- Project Wonderful Ad Box Code -->
+	      <div id="pw_adbox_599_3_0"></div>
+	      <!-- End Project Wonderful Ad Box Code -->
+	    </h:ad>
 	  </p>
 	</div>
       </div>
       <div id="maincornerback"></div>
       <div class="main">
+	<div id="smalladbg" style="float:right; width:351px; height: 53px">
+	  <h:ad>
+	    <!-- Project Wonderful Ad Box Code -->
+	    <div id="pw_adbox_602_2_0"></div>
+	    <!-- End Project Wonderful Ad Box Code -->
+	  </h:ad>
+	</div>
 	<div id="notmuch" style="width:1px; height:1px;"></div>
 	<h:ifHasMessage>
 	  <div class="error" id="message">
