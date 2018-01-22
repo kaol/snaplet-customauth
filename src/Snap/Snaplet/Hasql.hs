@@ -3,7 +3,13 @@
 
 module Snap.Snaplet.Hasql where
 
+import Control.Concurrent
+import Control.Lens
+import Control.Monad
+import Control.Monad.IO.Class
 import Control.Monad.Trans.Except
+import Data.ByteString
+import qualified Data.Configurator
 import Data.IORef
 import qualified Hasql.Connection as C
 import qualified Hasql.Query as Q
@@ -11,20 +17,25 @@ import qualified Hasql.Encoders as E
 import qualified Hasql.Decoders as D
 import qualified Hasql.Session as S
 import Snap.Snaplet
-import Control.Monad.IO.Class
-import Control.Lens
-import Data.ByteString
 
 class HasHasql m where
   getHasqlState :: m Hasql
   setHasqlState :: Hasql -> m ()
 
-data Hasql = HasqlSettings C.Settings
-           | HasqlConnection (IORef (Maybe C.Connection)) C.Settings
+data Hasql = HasqlSettings (IO (Either C.ConnectionError C.Connection))
+           | HasqlConnection (IORef (Maybe C.Connection))
+             (IO (Either C.ConnectionError C.Connection))
 
 hasqlInit :: C.Settings -> SnapletInit b Hasql
 hasqlInit s = makeSnaplet "hasql" "Hasql Snaplet" Nothing $ do
-  return $ HasqlSettings s
+  cfg <- getSnapletUserConfig
+  poolVar <- liftIO $ do
+    poolSize <- Data.Configurator.lookupDefault 5 cfg "pool"
+    poolVar <- newEmptyMVar
+    replicateM_ poolSize $ forkIO $ forever $
+      putMVar poolVar =<< C.acquire s
+    return poolVar
+  return $ HasqlSettings $ takeMVar poolVar
 
 commit :: S.Session ()
 commit = S.query () $ Q.statement "commit" E.unit D.unit True
@@ -36,9 +47,9 @@ run :: (HasHasql m, MonadIO m) => S.Session a -> m (Either S.Error a)
 run session = do
   state <- getHasqlState
   case state of
-   HasqlConnection ref s -> liftIO $ runExceptT $ do
+   HasqlConnection ref acquire -> liftIO $ runExceptT $ do
      let initSession = do
-           c <- catchE (ExceptT $ liftIO $ C.acquire s)
+           c <- catchE (ExceptT $ liftIO acquire)
                 (throwE . S.ClientError)
            liftIO $ writeIORef ref $ Just c
            ExceptT $ liftIO $ S.run begin c
