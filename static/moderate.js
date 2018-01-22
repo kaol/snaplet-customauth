@@ -81,35 +81,33 @@ session = session != null ? session[1] : null;
 	    $.ajax({url:'/s/sinfo2/'+sid,
 		    dataType: 'json',
 		    success: function(rpy){
-			if (rpy != null && rpy.ok) {
-			    $.each(rpy.info, function(k,v){
-				var field = $('#submission-entry #'+k)[0];
-				if (typeof field != 'undefined') {
-				    switch (field.tagName.toLowerCase()) {
-				    case 'span':
-				    case 'textarea':
-					field.innerText = v;
-					break;
-				    case 'a':
-					field.innerText = v;
-					field.setAttribute('href', v);
-					break;
-				    case 'input':
-					var type = field.getAttribute('type');
-					if (type == 'checkbox') {
-					    if (v) {
-						field.setAttribute('checked', 1);
-					    } else {
-						field.removeAttribute('checked');
-					    }
-					} else if (type == 'text') {
-					    field.setAttribute('value', v);
+			$.each(rpy, function(k,v){
+			    var field = $('#submission-entry #'+k)[0];
+			    if (typeof field != 'undefined') {
+				switch (field.tagName.toLowerCase()) {
+				case 'span':
+				case 'textarea':
+				    field.innerText = v;
+				    break;
+				case 'a':
+				    field.innerText = v;
+				    field.setAttribute('href', v);
+				    break;
+				case 'input':
+				    var type = field.getAttribute('type');
+				    if (type == 'checkbox') {
+					if (v) {
+					    field.setAttribute('checked', 1);
+					} else {
+					    field.removeAttribute('checked');
 					}
-					break;
+				    } else if (type == 'text') {
+					field.setAttribute('value', v);
 				    }
+				    break;
 				}
-			    });
-			}
+			    }
+			});
 		    }});
 	});
 	return this;

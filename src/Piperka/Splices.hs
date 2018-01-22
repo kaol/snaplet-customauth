@@ -42,6 +42,7 @@ import Piperka.Splices.Account
 import Piperka.Splices.Flavor
 import Piperka.Splices.Providers
 import Piperka.Splices.Revert
+import Piperka.Submission
 import Piperka.Submit.Splices
 import Piperka.Listing.Render
 import Piperka.ComicInfo.Splices
@@ -183,6 +184,7 @@ contentSplices' ini = do
   "passwordRecovery" ## renderPasswordRecovery
   "usePasswordHash" ## renderUsePasswordHash
   "submit" ## const $ renderSubmit ini
+  "submissions" ## const $ renderSubmissions
   "ifMod" ## C.conditionalChildren
     (const C.runChildren)
     (maybe False moderator)

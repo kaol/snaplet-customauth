@@ -44,7 +44,7 @@ data UserEdit = UserEdit {
   , first_page :: Maybe Text
   , description :: Maybe Text
   , submitted_on :: UTCTime
-  , uid :: Int
+  , user :: Maybe Text
   , want_email :: Bool
   , email :: Maybe Text
   , banner_url :: Maybe Text
@@ -65,7 +65,7 @@ decodeUserEdit =
   <*> DE.nullableValue DE.text
   <*> DE.nullableValue DE.text
   <*> (liftA (localTimeToUTC utc) $ DE.value DE.timestamp)
-  <*> (liftA fromIntegral $ DE.value DE.int4)
+  <*> DE.nullableValue DE.text
   <*> DE.value DE.bool
   <*> DE.nullableValue DE.text
   <*> DE.nullableValue DE.text
@@ -83,9 +83,9 @@ readSubmit = do
      statement sql (EN.value EN.int4) (DE.maybeRow decodeUserEdit) False)
   where
     sql = "SELECT sid, title, homepage, first_page, description, submitted_on, \
-          \uid, want_email, email, banner_url, from_ip, \
+          \name AS user, want_email, submit.email, banner_url, from_ip, \
           \sid in (SELECT sid FROM submit_banner) AS newbanner \
-          \FROM submit WHERE sid=$1"
+          \FROM submit LEFT JOIN users USING (uid) WHERE sid=$1"
 
 dropSubmit
   :: AppHandler ()
