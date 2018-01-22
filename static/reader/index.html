@@ -17,7 +17,9 @@
     <span id="readingmarker" class="marker">Now reading</span>
     <div id="moreoptions" class="script">
       <br/>
-      <label for="fixiframe">Fix iframe height</label> <input type="checkbox" id="fixiframe">
+      <span title="Height fixing enables more options for how to display the embedded page.">
+	<label for="fixiframe">Fix iframe height</label> <input type="checkbox" id="fixiframe">
+      </span>
       <span id="withfix">
 	<br/>
 	<span id="fixheight">
@@ -25,7 +27,7 @@
 	</span>
 	<br/>
 	<label for="lockselect">Lock page position </label> <input type="checkbox" id="lockselect" checked="1">
-	<input type="text" id="lockheight" value="0" readonly="1">
+	<input type="text" id="lockheight" value="0" readonly="1" title="Uncheck lock and scroll the embedded page to change the value.">
 	<br/>
 	<label for="arrownavigate">Bind left/right arrow</label><input type="checkbox" id="arrownavigate">
       </span>
@@ -58,9 +60,11 @@
 	  This feature is still under development.  Hopefully the
 	  buttons on the Reader bar are self-explanatory enough.  The
 	  Reader won't know it if you navigate away within the
-	  embedded comic.
+	  embedded comic.  More options for controlling how the
+	  content is displayed are available from a menu available in
+	  the top left corner.
 	</p>
-	<p>
+	<p id="nocomicselected">
 	  To try it out, you'll need to select a comic.  Go back to
 	  the <a href="/browse.html">main site</a> and select Reader
 	  from a comic's info page.

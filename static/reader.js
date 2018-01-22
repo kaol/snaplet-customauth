@@ -107,15 +107,20 @@ function setPage(ord, button, moveforward) {
     }
     if ($('#fixiframe').prop('checked')) {
 	iframe.css('height', $('#fixheight span').text());
-	$('#reader').focus().scrollTop($('#lockselect').prop('checked') ? $('#lockheight').attr('value') : 0);
+	var reader = $('#reader');
+	if ($('#lockselect').prop('checked')) {
+	    reader.scrollTop($('#lockheight').val());
+	}
+	$('#reader').focus();
     } else {
 	iframe.focus();
     }
 }
 
 function initcid(newcid) {
+    $('#nocomicselected').hide();
     if ($('#logo button').length == 0) {
-	$('#welcome').appendTo($('body')).dialog({autoOpen: false, minwidth: 300, width: 500});
+	$('#welcome').appendTo($('body')).dialog({autoOpen: true, minwidth: 300, width: 500});
 	$('<button type="button" id="welcomebutton">?</button>').on('click', function() {
 	    // Workaround, see http://forum.jquery.com/topic/dialog-position-issue
 	    $('#archivedialog,#mycomicsdialog').dialog('close');
@@ -162,6 +167,7 @@ function initcid(newcid) {
 }
 
 $(document).ready(function(){
+    $('#moreoptions, #navigation').tooltip();
     maximizeReader();
     var navigationHeight = $('#navigation').innerHeight();
     $('#moreoptions').mouseleave(function(){

@@ -28,15 +28,6 @@ text-align: right;
 min-width: 250px;
 }
 
-.ui-dialog .ui-resizable-se {
-width: 14px;
-height: 14px;
-background-image: url(/icons.png);
-position: absolute;
-right: 20px;
-bottom: 3px;
-}
-
 #reader {
     overflow-x: visible;
 }
@@ -118,4 +109,14 @@ display: none;
 
 #withfix input[type=text] {
 width: 3em;
+}
+
+.ui-tooltip {
+    width: 250px;
+    z-index: 3;
+    background: white;
+    padding: 2px;
+    border-color: lightgray;
+    border-style: solid;
+    border-width: 2px;
 }
