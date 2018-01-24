@@ -86,11 +86,12 @@ decodeBookmarkSet b = do
 userPrefs :: AppHandler ()
 userPrefs = do
   bookmark <- (decodeBookmarkSet =<<) <$> getParam "bookmark[]"
-  maybe readPrefs (\b -> runUserQueries $ setBookmark b) bookmark
+  maybe readPrefs (\b -> runMaybeUserQueries $ setBookmark b) bookmark
   where
     readPrefs = do
       ses <- maybe (simpleFail 403 "Session cookie required") return =<<
-             (fromASCIIBytes . cookieValue =<<) <$> getCookie "_session"
+             (fromASCIIBytes . cookieValue =<<) <$>
+             getCookie sessionCookieName
       runQueries $ do
         (u, f) <-
           maybe (lift $ simpleFail 400 "User authentication failed") return =<<
@@ -112,12 +113,12 @@ userPrefs = do
 
 setBookmark
   :: (Int, BookmarkSet)
-  -> MyData
+  -> Maybe MyData
   -> UserQueryHandler ()
-setBookmark (c, bookmark) p = do
-  lift $ validateCsrf
+setBookmark (c, bookmark) usr = do
   getUnread <- lift $ maybe False (== "1") <$> getParam "getunread"
-  let u = uid p
+  u <- maybe (lift $ simpleFail 400 "User authentication failed") return =<<
+    maybe viaToken (\u -> lift validateCsrf >> (return $ Just $ uid u)) usr
   let cid = fromIntegral c
   ord <- case bookmark of
     Page o' ->
@@ -167,3 +168,11 @@ setBookmark (c, bookmark) p = do
            \RETURNING ord+1"
     sql3 = "DELETE FROM subscriptions WHERE uid=$1 AND cid=$2"
     sql4 = "SELECT total_new, new_in FROM user_unread_stats($1)"
+    -- Bookmarks may be set without session cookie and with just a
+    -- CSRF token in request parameters
+    viaToken = (lift $ (fromASCIIBytes =<<) <$> getParam "token") >>=
+      (ExceptT . maybe (return $ Right Nothing)
+       (\token -> run $ query token $ statement sql5 (EN.value EN.uuid)
+                  (DE.maybeRow $ DE.value DE.int4) True))
+    sql5 = "SELECT uid FROM p_session \
+           \WHERE token_for IS NOT NULL AND ses=$1"

@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE FlexibleInstances #-}
 
@@ -32,6 +33,7 @@ module Application
   , defaultUserPrefs
   , defaultUserStats
   , getPrefs
+  , sessionCookieName
   ) where
 
 ------------------------------------------------------------------------------
@@ -39,11 +41,7 @@ module Application
 import Piperka.Listing.Types (ViewColumns)
 
 import Control.Lens
-import Snap.Snaplet
-import Snap.Snaplet.Heist
-import Snap.Snaplet.CustomAuth
-import Snap.Snaplet.Hasql
-import Snap.Snaplet.Session
+import Data.ByteString (ByteString)
 import Data.Text as T
 import Data.Int
 import Data.UUID
@@ -52,6 +50,11 @@ import qualified Hasql.Session
 import Heist (RuntimeSplice)
 import Heist.Compiled (Splice)
 import Network.HTTP.Client (Manager)
+import Snap.Snaplet
+import Snap.Snaplet.Heist
+import Snap.Snaplet.CustomAuth hiding (sessionCookieName)
+import Snap.Snaplet.Hasql
+import Snap.Snaplet.Session
 
 import Piperka.Account.Types (AccountUpdateError)
 import Piperka.Action.Types
@@ -143,6 +146,9 @@ instance HasHeist App where
 instance HasHasql (Handler App v) where
   getHasqlState = withTop db get
   setHasqlState s = withTop db $ put s
+
+sessionCookieName :: ByteString
+sessionCookieName = "p_session"
 
 ------------------------------------------------------------------------------
 type AppHandler = Handler App App

@@ -1,12 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Piperka.Auth (authHandler, currentUserPlain, mayCreateAccount) where
+module Piperka.Auth (authHandler, currentUserPlain, mayCreateAccount, setCSRFCookie) where
 
 import Control.Monad.State
 import Control.Lens
 import Data.Maybe (isJust)
 import Data.IORef
-import Data.UUID (toASCIIBytes)
+import Data.UUID (UUID, toASCIIBytes)
 import Snap
 import Snap.Snaplet.CustomAuth
 import Snap.Snaplet.CustomAuth.User (setUser)
@@ -33,12 +33,16 @@ authHandler alwaysMinimal action = do
           modify $ set actionResult act
           maybe (return ()) (withTop auth . setUser) usr)
   isFailed <- liftIO $ readIORef failed
-  maybe (return ()) setCsrfCookie =<< currentUserPlain
+  maybe (return ()) (setCSRFCookie . ucsrfToken) =<< currentUserPlain
   if isFailed then cRender "loginFailed_" else action
-  where
-    setCsrfCookie usr = modifyResponse $ addResponseCookie $
-      Cookie "csrf_ham" (toASCIIBytes $ ucsrfToken usr)
-      Nothing Nothing (Just "/") False False
+
+setCSRFCookie
+  :: UUID
+  -> AppHandler ()
+setCSRFCookie token = modifyResponse $ addResponseCookie $
+  Cookie "csrf_ham" (toASCIIBytes token)
+  Nothing Nothing (Just "/") False False
+
 
 currentUserPlain
   :: AppHandler (Maybe MyData)

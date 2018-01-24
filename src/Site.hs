@@ -14,19 +14,19 @@ import Control.Concurrent.ParallelIO.Local
 import Control.Lens
 import Control.Monad.Trans
 import Data.ByteString (ByteString)
+import Data.ByteString.UTF8 (fromString)
 import qualified Data.Configurator
 import Data.Monoid
 import Heist
 import Network.HTTP.Client.TLS
 import Snap.Core (ifTop)
 import Snap.Snaplet
-import Snap.Snaplet.CustomAuth
+import Snap.Snaplet.CustomAuth hiding (sessionCookieName)
 import Snap.Snaplet.Hasql
 import Snap.Snaplet.Heist
 import Snap.Snaplet.Session.Backends.CookieSession
 import Snap.Util.FileServe
 import System.Directory (listDirectory)
-import Data.ByteString.UTF8 (fromString)
 
 import Application
 import Piperka.Account
@@ -50,6 +50,7 @@ routes = do
         , ("/s/profile", profileSubmission)
         , ("/s/attachProvider/:provider", attachProvider)
         , ("newuser", mayCreateAccount (return ()))
+        , ("/s/login", apiLogin)
         -- Moderator interface
         , ("/s/sinfo/:sid", readSubmit)
         , ("/s/sinfo2/:sid", readSubmit)
@@ -100,7 +101,7 @@ app = makeSnaplet "piperka" "Piperka application." Nothing $ do
                 ])
   let initData = AppInit efp tfp
   let authSettings =  defAuthSettings
-       & authSessionCookieName .~ "_session"
+       & authSessionCookieName .~ sessionCookieName
        & authUserField .~ "_login"
        & authPasswordField .~ "_password"
   m <- nestSnaplet "messages" messages $
