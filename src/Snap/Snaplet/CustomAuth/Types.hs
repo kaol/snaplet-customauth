@@ -14,6 +14,8 @@ import GHC.Generics (Generic)
 import Network.OAuth.OAuth2 (OAuth2)
 import URI.ByteString (URI)
 
+import Snap.Core (Cookie(..))
+
 data LoginFailure =
   NoSession | SessionRecoverFail | UsernameMissing | PasswordMissing | WrongPasswordOrUsername
   deriving (Show, Eq, Read)
@@ -62,8 +64,8 @@ data Provider = Provider
   }
   deriving (Show)
 
-data SavedAction = SavedAction {
-    actionProvider :: Text
+data SavedAction = SavedAction
+  { actionProvider :: Text
   , actionStamp :: UTCTime
   , actionUser :: Maybe ByteString
   -- Is the action expected to match with an ID attached to the user.
@@ -76,18 +78,17 @@ instance Binary SavedAction
 
 data AuthUser = AuthUser
   { name :: Text
-  , session :: Text
-  , csrfToken :: Text
+  , session :: ByteString
+  , csrfToken :: ByteString
   } deriving (Show)
 
-data AuthSettings = AuthSettings {
-    _authName :: Text
-  , _authUserField :: ByteString
-  , _authPasswordField :: ByteString
-  , _authSessionCookieName :: ByteString
+data AuthSettings = AuthSettings
+  { _authName :: Text
+  , _authSetCookie :: ByteString -> Cookie
   }
 
 makeLenses ''AuthSettings
 
 defAuthSettings :: AuthSettings
-defAuthSettings = AuthSettings "auth" "_login" "_password" "_session"
+defAuthSettings = AuthSettings "auth" $ \x ->
+  Cookie "_session" x Nothing Nothing (Just "/") False True

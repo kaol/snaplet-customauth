@@ -19,6 +19,7 @@ import Data.HashMap.Lazy (HashMap)
 import Data.Text (Text)
 import Network.HTTP.Client (Manager)
 
+import Snap.Core
 import Snap.Snaplet
 import Snap.Snaplet.CustomAuth.Types
 import Snap.Snaplet.Session
@@ -42,6 +43,7 @@ class (UserData u, Binary i, Show e, Eq e) => IAuthBackend u i e b | u -> b, b -
 
 data AuthManager u e b = forall i. IAuthBackend u i e b => AuthManager
   { activeUser :: UserData u => Maybe u
+  , setCookie :: ByteString -> Cookie
   , sessionCookieName :: ByteString
   , userField :: ByteString
   , passwordField :: ByteString

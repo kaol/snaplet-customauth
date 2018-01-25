@@ -10,9 +10,7 @@ module Snap.Snaplet.CustomAuth
   , UserData(..)
   , defAuthSettings
   , authName
-  , authUserField
-  , authPasswordField
-  , authSessionCookieName
+  , authSetCookie
   , createAccount
   , loginUser
   , logoutUser

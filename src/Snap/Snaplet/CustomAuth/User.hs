@@ -17,10 +17,10 @@ setUser
   => u
   -> Handler b (AuthManager u e b) ()
 setUser usr = do
-  sesName <- gets sessionCookieName
+  setter <- gets setCookie
   let udata = extractUser usr
   -- TODO
-  let wafer = Cookie sesName (encodeUtf8 $ session udata) Nothing Nothing (Just "/") False True
+  let wafer = setter $ session udata
   modifyResponse $ addResponseCookie wafer
   modify $ \mgr -> mgr { activeUser = Just usr }
 

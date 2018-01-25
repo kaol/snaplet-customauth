@@ -109,6 +109,7 @@ perform
   -> ExceptT ActionError AppHandler (Maybe UserWithStats)
 perform Logout True _ _ = do
   lift $ withTop auth logoutUser
+  lift $ maybe (return ()) expireCookie =<< getCookie "csrf_ham"
   return Nothing
 
 perform (Bookmark [(cid, _, Just (ord, subord, _))]) True usr uid =

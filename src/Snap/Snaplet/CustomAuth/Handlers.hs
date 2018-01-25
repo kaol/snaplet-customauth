@@ -9,11 +9,12 @@
 module Snap.Snaplet.CustomAuth.Handlers where
 
 import Control.Error.Util hiding (err)
-import Control.Lens
+import Control.Lens hiding (un)
 import Control.Monad.Trans
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import Control.Monad.State
+import qualified Data.Configurator as C
 import qualified Data.HashMap.Lazy as M
 import Data.Maybe
 import Data.Monoid
@@ -123,12 +124,17 @@ authInit
   -> AuthSettings
   -> SnapletInit b (AuthManager u e b)
 authInit oa s = makeSnaplet (view authName s) "Custom auth" Nothing $ do
+  cfg <- getSnapletUserConfig
+  un <- liftIO $ C.lookupDefault "_login" cfg "userField"
+  pn <- liftIO $ C.lookupDefault "_password" cfg "passwordField"
+  scn <- liftIO $ C.lookupDefault "_session" cfg "sessionCookieName"
   ps <- maybe (return M.empty) oauth2Init oa
   return $ AuthManager
     { activeUser = Nothing
-    , sessionCookieName = s ^. authSessionCookieName
-    , userField = s ^. authUserField
-    , passwordField = s ^. authPasswordField
+    , setCookie = s ^. authSetCookie
+    , sessionCookieName = scn
+    , userField = un
+    , passwordField = pn
     , stateStore' = maybe (error "oauth2 hooks not defined") stateStore oa
     , oauth2Provider = Nothing
     , authFailData = Nothing

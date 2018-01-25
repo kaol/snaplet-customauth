@@ -277,15 +277,15 @@ oauth2Check provider token = do
 instance UserData MyData where
   extractUser MyData{..} = AuthUser
     { name = uname
-    , session = toText usession
-    , csrfToken = toText ucsrfToken
+    , session = toASCIIBytes usession
+    , csrfToken = toASCIIBytes ucsrfToken
     }
 
 instance UserData UserWithStats where
   extractUser UserWithStats{..} = AuthUser
     { name = uname user
-    , session = toText $ usession user
-    , csrfToken = toText $ ucsrfToken user
+    , session = toASCIIBytes $ usession user
+    , csrfToken = toASCIIBytes $ ucsrfToken user
     }
 
 class HasUserID u where

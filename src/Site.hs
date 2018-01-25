@@ -19,7 +19,7 @@ import qualified Data.Configurator
 import Data.Monoid
 import Heist
 import Network.HTTP.Client.TLS
-import Snap.Core (ifTop)
+import Snap.Core (Cookie(..), ifTop)
 import Snap.Snaplet
 import Snap.Snaplet.CustomAuth hiding (sessionCookieName)
 import Snap.Snaplet.Hasql
@@ -101,9 +101,7 @@ app = makeSnaplet "piperka" "Piperka application." Nothing $ do
                 ])
   let initData = AppInit efp tfp
   let authSettings =  defAuthSettings
-       & authSessionCookieName .~ sessionCookieName
-       & authUserField .~ "_login"
-       & authPasswordField .~ "_password"
+       & authSetCookie .~ \x -> Cookie "p_session" x Nothing Nothing (Just "/") False True
   m <- nestSnaplet "messages" messages $
        initCookieSessionManager "site_key.txt" "messages" Nothing (Just 3600)
   let m' = subSnaplet messages
