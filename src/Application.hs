@@ -126,6 +126,7 @@ data App = App
 data AppInit = AppInit
   { extFormPart :: Text
   , tagFormPart :: Text
+  , scriptHash :: [(Text, Text)]
   }
 
 defaultUserPrefs :: UserPrefs

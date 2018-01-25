@@ -13,12 +13,18 @@ module Site
 import Control.Concurrent.ParallelIO.Local
 import Control.Lens
 import Control.Monad.Trans
-import Data.ByteString (ByteString)
+import Crypto.Hash.MD5
+import Data.ByteString (ByteString, readFile)
+import qualified Data.ByteString.Base16 as Base16
 import Data.ByteString.UTF8 (fromString)
 import qualified Data.Configurator
 import Data.Monoid
+import Data.Text (Text)
+import qualified Data.Text as T
+import Data.Text.Encoding (decodeUtf8)
 import Heist
 import Network.HTTP.Client.TLS
+import Prelude hiding (readFile)
 import Snap.Core (Cookie(..), ifTop)
 import Snap.Snaplet
 import Snap.Snaplet.CustomAuth hiding (sessionCookieName)
@@ -83,23 +89,32 @@ staticRoutes =
   [ ("",          serveDirectory "static")
   ]
 
-data ParLabels a b c = L1 a | L2 b | L3 c
+data ParLabels a b c d = L1 a | L2 b | L3 c | L4 d
+
+generateMD5
+  :: FilePath
+  -> IO (Either String Text)
+generateMD5 file = do
+  content <- readFile $ "static" ++ file
+  return $ Right $ decodeUtf8 $ Base16.encode $ hash $ content
 
 app :: SnapletInit App App
 app = makeSnaplet "piperka" "Piperka application." Nothing $ do
+  let jsFiles = ["/moderate.js", "/qsearch.js", "/piperka.js"]
   cfg <- getSnapletUserConfig
   ads <- liftIO $ Data.Configurator.lookupDefault False cfg "ads"
   conn <- liftIO $ Data.Configurator.lookupDefault "postgresql://kaol@/piperka" cfg "db"
   mgr <- liftIO newTlsManager
-  [~(L1 elookup), ~(L2 tlookup), ~(L3 tfp), ~(L3 efp)] <- liftIO $
+  (~(L1 elookup): ~(L2 tlookup): ~(L3 tfp): ~(L3 efp):jsHash) <- liftIO $
     (map $ either error id) <$>
-    withPool 4 (flip parallel
-                [ (fmap L1) <$> generateExternal
-                , (fmap L2) <$> generateTag
-                , (fmap L3) <$> generateTagFormPart
-                , (fmap L3) <$> generateExternalFormPart
-                ])
-  let initData = AppInit efp tfp
+    withPool (4+length jsFiles) (flip parallel
+                ([ (fmap L1) <$> generateExternal
+                 , (fmap L2) <$> generateTag
+                 , (fmap L3) <$> generateTagFormPart
+                 , (fmap L3) <$> generateExternalFormPart
+                 ] <> map (\x -> (fmap L4) <$> generateMD5 x) jsFiles))
+  let initData = AppInit efp tfp $
+        zip (map T.pack jsFiles) $ map (\ ~(L4 x) -> x) jsHash
   let authSettings =  defAuthSettings
        & authSetCookie .~ \x -> Cookie "p_session" x Nothing Nothing (Just "/") False True
   m <- nestSnaplet "messages" messages $

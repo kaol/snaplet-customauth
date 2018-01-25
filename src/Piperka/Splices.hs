@@ -9,29 +9,28 @@ module Piperka.Splices
   )
   where
 
-import Heist
-import Heist.Compiled as C
+import Control.Applicative ((<|>))
 import Control.Error.Util (note, bool)
+import Control.Lens
 import Control.Monad (when)
 import Control.Monad.State
-import Control.Lens
 import Data.DList (DList)
+import Data.Map.Syntax
+import Data.Maybe
+import Data.Monoid
 import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
-import Snap
-import Control.Applicative ((<|>))
-import Data.Monoid
-import Snap.Snaplet.CustomAuth
-import Backend()
-import qualified Text.XmlHtml as X
-import Data.Map.Syntax
-import qualified Heist.Compiled.Extra as C
-
-import Data.Maybe
 import Data.UUID
+import Heist
+import Heist.Compiled as C
+import qualified Heist.Compiled.Extra as C
 import qualified HTMLEntities.Text as HTML
+import Snap
+import Snap.Snaplet.CustomAuth
+import qualified Text.XmlHtml as X
 
 import Application
+import Backend()
 import Piperka.Account
 import Piperka.Action.Splices
 import Piperka.Action.Types
@@ -58,7 +57,8 @@ piperkaSplices ini = do
   "script" ## do
     node <- getParamNode
     let src = fromJust $ X.getAttribute "src" node
-    token <- liftIO $ randomString 6
+    token <- maybe (liftIO $ randomString 6) return $
+      lookup src $ scriptHash ini
     runNode $ X.setAttribute "src" (src <> "?v=" <> token) $
       node {X.elementTag = "script"}
   "subscribeForm" ## callTemplate "_subscribe"
