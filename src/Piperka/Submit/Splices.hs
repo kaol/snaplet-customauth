@@ -106,7 +106,6 @@ data EditEntry = EditEntry
   , diffTags :: Bool
   }
 
--- TODO: only give results if moderator user == True
 renderListOfEdits
   :: RuntimeAppHandler MyData
 renderListOfEdits =
@@ -134,7 +133,8 @@ renderListOfEdits =
           \tagid NOT IN (SELECT tagid FROM comic_tag WHERE cid=user_edit.cid)) OR \
           \sid IN (SELECT sid FROM user_edit JOIN comic_tag USING (cid) WHERE \
           \tagid NOT IN (SELECT tagid FROM submit_tag WHERE sid=user_edit.sid)) AS difftags \
-          \FROM user_edit JOIN comics USING (cid) LEFT JOIN users USING (uid) ORDER BY sid"
+          \FROM user_edit JOIN comics USING (cid) LEFT JOIN users USING (uid) \
+          \WHERE $1 in (SELECT uid FROM moderator) ORDER BY sid"
     decoder =
       EditEntry
       <$> DE.value DE.int4

@@ -15,10 +15,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jqPlot/1.0.9/plugins/jqplot.canvasTextRenderer.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jqPlot/1.0.9/plugins/jqplot.canvasAxisTickRenderer.min.js"></script>
     <h:ifMod>
-      <script src="/moderate.js"></script>
+      <h:script src="/moderate.js"></h:script>
     </h:ifMod>
-    <script src="/qsearch.js"></script>
-    <script src="/piperka.js"></script>
+    <h:script src="/qsearch.js"></h:script>
+    <h:script src="/piperka.js"></h:script>
   </head>
 
   <body>

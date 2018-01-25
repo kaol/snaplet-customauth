@@ -55,44 +55,55 @@ piperkaSplices
   :: AppInit
   -> Splices (C.Splice AppHandler)
 piperkaSplices ini = do
-  "piperka" ## renderPiperka ini
+  "script" ## do
+    node <- getParamNode
+    let src = fromJust $ X.getAttribute "src" node
+    token <- liftIO $ randomString 6
+    runNode $ X.setAttribute "src" (src <> "?v=" <> token) $
+      node {X.elementTag = "script"}
+  "subscribeForm" ## callTemplate "_subscribe"
+  "submit" ## renderSubmit ini
+  "ad" ## do
+    x <- runChildren
+    return $ yieldRuntime $ bool (return mempty) (C.codeGen x) =<<
+      (lift $ view adsEnabled)
+  "adInit" ## callTemplate "_projectWonderful"
+  "paramAttrs" ## withLocalSplices mempty ("value" ## paramValue) runChildren
+  "piperka" ## renderPiperka
 -- Splice definition overridden if used via withCid.
-  "comicInfo" ## renderMinimal ini renderComicInfo
+  "comicInfo" ## renderMinimal renderComicInfo
   <> messagesSplices
 
 renderMinimal
-  :: AppInit
-  -> RuntimeAppHandler (Maybe MyData)
+  :: RuntimeAppHandler (Maybe MyData)
   -> C.Splice AppHandler
-renderMinimal ini action =
-  (\n -> withSplices (action n) (contentSplices' ini) n) `C.defer`
+renderMinimal action =
+  (\n -> withSplices (action n) contentSplices' n) `C.defer`
   (lift currentUserPlain)
 
 renderContent
-  :: AppInit
-  -> [X.Node]
+  :: [X.Node]
   -> RuntimeAppHandler (Maybe MyData)
-renderContent ini ns n = do
+renderContent ns n = do
   authContent <- deferMany (withSplices (callTemplate "_authFailure") authErrorSplices) $ do
     suppress <- lift $ withTop' id $ view suppressError
     if suppress then return Nothing else do
       err1 <- lift $ withTop auth $ getAuthFailData
       err2 <- lift $ withTop apiAuth $ getAuthFailData
       return $ err1 <|> err2
-  content <- withSplices (runNodeList ns) (contentSplices' ini) n
+  content <- withSplices (runNodeList ns) contentSplices' n
   return $ authContent <> content
 
 renderPiperka
-  :: AppInit
-  -> C.Splice AppHandler
-renderPiperka ini = do
+  :: C.Splice AppHandler
+renderPiperka = do
   node <- getParamNode
   let ads = maybe True (read . T.unpack) $ X.getAttribute "ads" node
   let xs = X.childNodes node
   let getInner n = do
-        content <- renderContent ini xs $ snd <$> n
+        content <- renderContent xs $ snd <$> n
         C.withSplices (C.callTemplate "_base")
-          (contentSplices ini content) n
+          (contentSplices content) n
       renderInner n =
         let inner = getInner $ (\(a, u) -> (a, user <$> u)) <$> n
         in C.eitherDeferMap (return . note () . snd)
@@ -102,9 +113,9 @@ renderPiperka ini = do
     u <- lift $ withTop auth currentUser
     a <- lift $ withTop' id $ view actionResult
     return (a, u)
-  bare <- renderMinimal ini $ nullCreateSplice .
+  bare <- renderMinimal $ nullCreateSplice .
           (C.withSplices (C.runNodeList xs)
-           ((contentSplices' ini) <> ("onlyWithStats" ## const $ return mempty)))
+           (contentSplices' <> ("onlyWithStats" ## const $ return mempty)))
   return $ yieldRuntime $ do
     when (not ads) (lift $ modify $ set adsEnabled False)
     useMinimal <- lift $ view minimal
@@ -153,18 +164,15 @@ nullStatsSplices = mapV (const . return) $ do
   "onlyWithStats" ## mempty
 
 contentSplices
-  :: AppInit
-  -> DList (Chunk AppHandler)
+  :: DList (Chunk AppHandler)
   -> Splices (RuntimeAppHandler (Maybe (Maybe ActionError, Maybe Action), Maybe MyData))
-contentSplices ini content =
+contentSplices content =
   ("action" ## (\n -> renderAction (return content) $ fst <$> n)) <>
-  (mapV (. fmap snd)) (contentSplices' ini)
+  (mapV (. fmap snd)) contentSplices'
 
 contentSplices'
-  :: AppInit
-  -> Splices (RuntimeAppHandler (Maybe MyData))
-contentSplices' ini = do
-  "subscribeForm" ## const $ callTemplate "_subscribe"
+  :: Splices (RuntimeAppHandler (Maybe MyData))
+contentSplices' = do
   "kaolSubs" ## renderKaolSubs
   "ifLoggedIn" ## C.deferMany (C.withSplices C.runChildren loggedInSplices)
   "ifLoggedOut" ## C.conditionalChildren
@@ -183,22 +191,14 @@ contentSplices' ini = do
   "csrfForm" ## csrfForm
   "passwordRecovery" ## renderPasswordRecovery
   "usePasswordHash" ## renderUsePasswordHash
-  "submit" ## const $ renderSubmit ini
-  "submissions" ## const $ renderSubmissions
   "ifMod" ## C.conditionalChildren
-    (const C.runChildren)
+    (const (C.withLocalSplices ("submissions" ## renderSubmissions) mempty C.runChildren))
     (maybe False moderator)
   "email" ## defer $ \n -> return $ yieldRuntimeText $
     maybe (return "") (lift . getUserEmail . uid) =<< n
-  "paramAttrs" ## const $ withLocalSplices mempty ("value" ## paramValue) runChildren
   "providers" ## renderProviders
   "oauth2Create" ## renderOAuth2
   "readers" ## renderReaders
-  "ad" ## const $ do
-    x <- runChildren
-    return $ yieldRuntime $ bool (return mempty) (C.codeGen x) =<<
-      (lift $ view adsEnabled)
-  "adInit" ## const $ callTemplate "_projectWonderful"
 
 loggedInSplices
   :: Splices (RuntimeAppHandler MyData)
