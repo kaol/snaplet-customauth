@@ -86,7 +86,8 @@ routes = do
 
 staticRoutes :: [(ByteString, Handler App App ())]
 staticRoutes =
-  [ ("",          serveDirectory "static")
+  [ ("d", serveDirectory "d")
+  , ("", serveDirectory "static")
   ]
 
 data ParLabels a b c d = L1 a | L2 b | L3 c | L4 d
@@ -100,7 +101,13 @@ generateMD5 file = do
 
 app :: SnapletInit App App
 app = makeSnaplet "piperka" "Piperka application." Nothing $ do
-  let jsFiles = ["/moderate.js", "/qsearch.js", "/piperka.js"]
+  let jsFiles =
+        [ "/piperka.js"
+        , "/qsearch.js"
+        , "/moderate.js"
+        , "/piperka.css"
+        , "/qsearch.css"
+        ]
   cfg <- getSnapletUserConfig
   ads <- liftIO $ Data.Configurator.lookupDefault False cfg "ads"
   conn <- liftIO $ Data.Configurator.lookupDefault "postgresql://kaol@/piperka" cfg "db"

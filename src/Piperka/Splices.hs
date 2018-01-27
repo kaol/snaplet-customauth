@@ -54,13 +54,8 @@ piperkaSplices
   :: AppInit
   -> Splices (C.Splice AppHandler)
 piperkaSplices ini = do
-  "script" ## do
-    node <- getParamNode
-    let src = fromJust $ X.getAttribute "src" node
-    token <- maybe (liftIO $ randomString 6) return $
-      lookup src $ scriptHash ini
-    runNode $ X.setAttribute "src" (src <> "?v=" <> token) $
-      node {X.elementTag = "script"}
+  "script" ## hashTaggedNode "script" "src"
+  "stylesheet" ## hashTaggedNode "link" "href"
   "subscribeForm" ## callTemplate "_subscribe"
   "submit" ## renderSubmit ini
   "ad" ## do
@@ -73,6 +68,14 @@ piperkaSplices ini = do
 -- Splice definition overridden if used via withCid.
   "comicInfo" ## renderMinimal renderComicInfo
   <> messagesSplices
+  where
+    hashTaggedNode tagName srcAttr = do
+      node <- getParamNode
+      let src = fromJust $ X.getAttribute srcAttr node
+      token <- maybe (liftIO $ randomString 6) return $
+        lookup src $ scriptHash ini
+      runNode $ X.setAttribute srcAttr (src <> "?v=" <> token) $
+        node {X.elementTag = tagName}
 
 renderMinimal
   :: RuntimeAppHandler (Maybe MyData)

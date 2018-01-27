@@ -128,6 +128,7 @@ data AppInit = AppInit
   , tagFormPart :: Text
   , scriptHash :: [(Text, Text)]
   }
+  deriving (Show)
 
 defaultUserPrefs :: UserPrefs
 defaultUserPrefs = UserPrefs

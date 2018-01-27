@@ -1,5 +1,8 @@
 create extension pgcrypto;
 
+alter function do_login(int) owner to piperka;
+alter function do_login(text, text) owner to piperka;
+
 SET ROLE piperka;
 
 create type integerpair as ("1" integer, "2" integer);
@@ -7,6 +10,13 @@ create type integerpair as ("1" integer, "2" integer);
 DROP FUNCTION auth_login(text,text);
 DROP FUNCTION do_login(integer);
 DROP FUNCTION recover_session(uuid);
+
+CREATE TABLE login_method_oauth2 (
+  opid int NOT NULL,
+  identification text NOT NULL,
+  UNIQUE (uid, opid),
+  UNIQUE (opid, identification)
+) INHERITS (login_method);
 
 CREATE OR REPLACE FUNCTION auth_create_password(password text, uid int) RETURNS int AS $$
   INSERT INTO login_method_passwd (uid, hash)
@@ -183,13 +193,6 @@ CREATE TABLE login_method_passwd (
 ) INHERITS (login_method);
 
 ALTER TABLE pwdgen_hash ADD COLUMN stamp timestamp DEFAULT now();
-
-CREATE TABLE login_method_oauth2 (
-  opid int NOT NULL,
-  identification text NOT NULL,
-  UNIQUE (uid, opid),
-  UNIQUE (opid, identification)
-) INHERITS (login_method);
 
 CREATE OR REPLACE FUNCTION create_recovery_key(name text, email text, hash character(32)) RETURNS boolean AS $$
 DECLARE

@@ -4,7 +4,7 @@
     This is a webcomic tracking and bookmarking service.
   </p>
   <p>
-    You might find this stie useful if you like to read many
+    You might find this site useful if you like to read many
     webcomics, like <h:kaolSubs/> as your humble web master does.
   </p>
 </h:piperka>

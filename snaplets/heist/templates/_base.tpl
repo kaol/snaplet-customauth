@@ -3,13 +3,13 @@
   <head>
     <meta charset="UTF-8"/>
     <title>Piperka <h:unreadStats/></title>
-    <link rel="stylesheet" type="text/css" href="/piperka.css">
-    <link rel="stylesheet" type="text/css" href="/qsearch.css">
+    <h:stylesheet rel="stylesheet" type="text/css" href="/piperka.css"/>
+    <h:stylesheet rel="stylesheet" type="text/css" href="/qsearch.css"/>
 
-    <META HTTP-EQUIV="CACHE-CONTROL" CONTENT="NO-CACHE">
+    <META HTTP-EQUIV="CACHE-CONTROL" CONTENT="NO-CACHE"/>
     <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
     <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
-    <link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/jqPlot/1.0.9/jquery.jqplot.min.css">
+    <link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/jqPlot/1.0.9/jquery.jqplot.min.css"/>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jqPlot/1.0.9/jquery.jqplot.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jqPlot/1.0.9/plugins/jqplot.dateAxisRenderer.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jqPlot/1.0.9/plugins/jqplot.canvasTextRenderer.min.js"></script>
@@ -193,6 +193,13 @@
 	  <h:sqlErr/>
 	</h:action>
       </div>
+    </div>
+    <div class="legalese">
+      Piperka.net copyright Kari Pahula &lt;<a
+      href="kaol@piperka.net">kaol@piperka.net</a>&gt;
+      2005-2018. Descriptions are user submitted and Piperka claims no
+      copyright over them.  Banners copyright their respoective
+      authors.
     </div>
   </body>
 </html>
