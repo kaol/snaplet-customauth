@@ -39,7 +39,6 @@ import Piperka.Auth.Splices
 import Piperka.OAuth2.Splices
 import Piperka.Splices.Account
 import Piperka.Splices.Flavor
-import Piperka.Splices.Providers
 import Piperka.Splices.Revert
 import Piperka.Submission
 import Piperka.Submit.Splices
@@ -199,7 +198,6 @@ contentSplices' = do
     (maybe False moderator)
   "email" ## defer $ \n -> return $ yieldRuntimeText $
     maybe (return "") (lift . getUserEmail . uid) =<< n
-  "providers" ## renderProviders
   "oauth2Create" ## renderOAuth2
   "readers" ## renderReaders
 

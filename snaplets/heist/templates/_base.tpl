@@ -61,7 +61,9 @@
 	    </h:ifLoggedIn>
 	    <h:ifLoggedOut>
 	      <form method="post" action="/updates.html" style="padding-bottom:10px">
-		<p>User:
+		<p>
+		  User:
+		  <a id="loginwith" href="loginwith.html">Login with...</a>
 		  <br/><input class="login" type="text" name="_login" maxlength="40" style="width:140px"/>
 		  <br/>Password:<br/>
 		  <input class="login" type="password" name="_password" maxlength="40" style="width:140px"/>

@@ -85,9 +85,11 @@ routes = do
     ]
 
 staticRoutes :: [(ByteString, Handler App App ())]
-staticRoutes =
-  [ ("d", serveDirectory "d")
-  , ("", serveDirectory "static")
+staticRoutes = mapped._2 %~ serveDirectory $
+  [ ("d", "files/d")
+  , ("blog", "files/blog")
+  , ("banners", "files/banners")
+  , ("", "static")
   ]
 
 data ParLabels a b c d = L1 a | L2 b | L3 c | L4 d
