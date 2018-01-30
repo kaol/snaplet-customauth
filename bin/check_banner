@@ -1,0 +1,22 @@
+#! /usr/bin/perl
+
+use Image::Magick;
+
+my $imgFile = shift;
+my $p = new Image::Magick;
+$p->Read($imgFile);
+my $mime = $p->Get('mime');
+my $width = $p->Get('width');
+my $height = $p->Get('height');
+if (@$p == 0) {
+    exit 10;
+} elsif (@$p > 1) {
+    exit 11;
+} elsif ($mime !~ m<^gif|png|jpeg>) {
+    exit 12;
+} elsif ($width != 468 || $height != 60) {
+    print STDERR "$width $height\n";
+    exit 13;
+}
+$mime =~ tr/A-Z/a-z/;
+print "$mime\n";

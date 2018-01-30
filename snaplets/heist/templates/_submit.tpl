@@ -7,7 +7,7 @@
   <h3>Email notification</h3>
   <label for="want_notify">Send me an email when the comics is added
   to Piperka.</label>
-  <input type="checkbox" id="want_notify" name="want_notify"/>
+  <input type="checkbox" id="want_notify" name="want_notify" value="1"/>
   <p>Email: <input type="text" name="email" value="${h:email}"/></p>
   <p>
     If the comics hasn't been added after a while, feel free to ask

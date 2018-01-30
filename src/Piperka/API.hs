@@ -6,6 +6,7 @@ module Piperka.API (
   , dumpArchive
   , profileSubmission
   , attachProvider
+  , receiveSubmit
   -- Used by the unofficial Android app
   , apiLogin
   -- Moderator actions
@@ -20,6 +21,7 @@ import Piperka.API.Login
 import Piperka.API.Profile
 import Piperka.API.Provider
 import Piperka.API.QuickSearch
+import Piperka.API.Submit
 import Piperka.API.SubmitInfo
 import Piperka.API.TagList
 import Piperka.API.UserPrefs

@@ -55,6 +55,7 @@ routes = do
         , ("/s/archive/:cid", dumpArchive)
         , ("/s/profile", profileSubmission)
         , ("/s/attachProvider/:provider", attachProvider)
+        , ("/s/submit", receiveSubmit)
         , ("newuser", mayCreateAccount (return ()))
         , ("/s/login", apiLogin)
         -- Moderator interface
