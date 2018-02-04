@@ -5,13 +5,17 @@
 module Piperka.API.Submit (receiveSubmit) where
 
 import Contravariant.Extras.Contrazip
+import Control.Applicative ((<|>))
 import Control.Error.Util
+import Control.Lens (set)
 import Control.Monad
 import Control.Monad.Except (throwError)
-import Control.Monad.Trans.Class
+import Control.Monad.State
 import Control.Monad.Trans.Except
-import Data.Aeson
+import Data.Aeson hiding (Success)
+import Data.Binary.Builder (putStringUtf8, toLazyByteString)
 import qualified Data.ByteString.Char8 as B
+import Data.ByteString.Lazy (toStrict)
 import Data.Functor.Contravariant
 import Data.Int
 import Data.Maybe
@@ -20,52 +24,50 @@ import Data.Monoid
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Encoding
+import Data.Textual (fromString)
 import qualified Hasql.Decoders as DE
 import qualified Hasql.Encoders as EN
 import Hasql.Query
 import Hasql.Session hiding (run, sql)
+import Heist.Compiled
 import qualified HTMLEntities.Text as HTML
 import Network.IP.Addr
 import Snap
 import Snap.Snaplet.Hasql
+import Snap.Snaplet.Heist
 
 import Application
 import Piperka.API.Common
 import Piperka.API.Submit.Banner
-import Piperka.Util (getCid)
+import Piperka.API.Submit.Types
+import Piperka.Util (getCid, getParamInt)
+
+rqRemote
+  :: Request
+  -> NetAddr IP
+rqRemote rq = let
+  client = rqClientAddr rq
+  addr = B.unpack $ client
+  isLocal = B.take 4 client == "127."
+  forwarded = B.unpack <$> getHeader "X-Proxy-Forward" rq
+  parse a =
+    (((flip netAddr 128 . IPv6) <$> (fromString a :: Maybe IP6)) <|>
+     ((flip netAddr 32 . IPv4) <$> (fromString a :: Maybe IP4))) :: Maybe (NetAddr IP)
+  in fromJust $
+     (if isLocal then maybe id (\x -> (parse x <|>)) forwarded else id) $
+     parse addr
 
 receiveSubmit
   :: AppHandler ()
 receiveSubmit = do
-  formType <- getParam "formtype"
-  case formType of
-    Just "submit" -> handleSubmit
-    Just "editinfo" -> handleEditInfo
-    _ -> simpleFail 404 "Required parameter formtype invalid or missing"
-
-data SubmitValidation =
-    TitleOrUrl
-  | ComicExists (Text, Text)
-  | Database Error
-
-validationMsg
-  :: SubmitValidation
-  -> Text
-validationMsg TitleOrUrl =
-  "<h2>Can't do that</h2>\
-  \<p>I'd like to see both a title and the home page URL for your submission.</p>"
-validationMsg (ComicExists (c,t)) =
-  "<h2>That looks familiar<h2>\
-  \<p>There is already a comic named as <a href='info.html?cid="
-  <>c<>"'>"<>t<>
-  "listed on Piperka.</p>\
-  \<p>The comic has not been submitted.  If you think that there's been some error \
-  \or your comic just happens to have the same name as an existing comic listed on \
-  \Piperka, then please send me an email about it.  Sorry for the inconvenience."
-validationMsg (Database e) =
-  "<h2>Database error</h2>\
-  \<p>An error occurred when trying to check the submission: "
-  <>(HTML.text $ T.pack $ show e)<>"</p>"
+  b <- receiveBanner
+  formType <- getPostParam "formtype"
+  let handle b' = case formType of
+        Just "submit" -> handleSubmit b'
+        Just "editinfo" -> handleEditInfo b'
+        _ -> returnMessage InvalidFormType
+  maybe (handle Nothing)
+    (either (returnMessage . BValidation) (handle . Just)) b
 
 existCheck
   :: Text
@@ -83,7 +85,7 @@ existCheck t = (maybe (return ()) (throwE . ComicExists)) =<<
 insertSubmit
   :: Maybe Text
   -> Maybe Text
-  -> Maybe (NetAddr IP)
+  -> NetAddr IP
   -> Bool
   -> Maybe Text
   -> Text
@@ -95,7 +97,7 @@ insertSubmit first desc ip wantEmail email title home u =
   (contrazip8
    (EN.nullableValue EN.text)
    (EN.nullableValue EN.text)
-   (EN.nullableValue EN.inet)
+   (EN.value EN.inet)
    (EN.value EN.bool)
    (EN.nullableValue EN.text)
    (EN.value EN.text)
@@ -107,10 +109,26 @@ insertSubmit first desc ip wantEmail email title home u =
           \want_email, email, title, homepage, uid) VALUES \
           \($1,$2,$3,$4,$5,$6,$7,$8) RETURNING sid"
 
+returnMessage
+  :: SubmitResult
+  -> AppHandler ()
+returnMessage status = do
+  st <- getHeistState
+  modify $ set submitResult $ Just status
+  msg <- (decodeUtf8 . toStrict . toLazyByteString) <$>
+    (maybe (return $ putStringUtf8 $ show status) fst $
+     renderTemplate st "submitMessage_")
+  let isSuccess = isSubmitSuccess status
+      msgField = if isSuccess then "msg" else "errmsg"
+      addOk = if isSuccess then ("ok" .= True :) else id
+  writeLBS $ encode $ object $ addOk $ [msgField .= msg]
+
 handleSubmit
-  :: AppHandler ()
-handleSubmit = do
+  :: Maybe Banner
+  -> AppHandler ()
+handleSubmit b = do
   params <- getParams
+  remote <- rqRemote <$> getRequest
   let lookupText n = (hush . decodeUtf8' =<<) . listToMaybe =<< M.lookup n params
   validation <- runExceptT $ do
     [title, url] <- hoistEither $ do
@@ -124,22 +142,17 @@ handleSubmit = do
         sid <- ExceptT $ insertSubmit
           (lookupText "first_page")
           (lookupText "description")
-          Nothing  -- TODO remote IP
+          remote
           ((Just ["1"]) == (M.lookup "want_notify" params))
           (lookupText "email")
           title
           url
           (uid <$> u)
+        maybe (return Nothing)
+          (\b' -> (ExceptT $ submitBanner sid b') >> return Nothing) b
         insertTagsEpedias sid params
-        b <- lift receiveBanner
-        maybe (lift $ return ())
-          (either (const $ lift $ return ()) (ExceptT . saveBanner sid)) b
-        lift $ writeLBS $ encode $ object $
-          [ "ok" .= True
-          , "msg" .= ("Your submission has been accepted and queued." :: Text)
-          ]
-  either (\m -> writeLBS $ encode $ object
-                ["msg" .= validationMsg m]) submit validation
+        return (Success SubmissionAccepted)
+  returnMessage =<< either (return . SValidation) submit validation
 
 existCheck'
   :: Int32
@@ -150,37 +163,29 @@ existCheck' c = run $ query c $
   where
     sql = "SELECT $1 IN (SELECT cid FROM comics)"
 
-data EditValidation = NoComic | Database2 Error
-
-validationMsg'
-  :: EditValidation
-  -> Text
-validationMsg' NoComic = "No such comic."
-validationMsg' (Database2 e) =
-  "<h2>Database error</h2>\
-  \<p>An error occurred when trying to check the submission: "
-  <>(HTML.text $ T.pack $ show e)<>"</p>"
-
 insertEdit
   :: Maybe UserID
   -> Int32
-  -> Maybe (NetAddr IP)
+  -> NetAddr IP
   -> Maybe Text
   -> AppHandler (Either Error Int32)
 insertEdit u c ip desc = run $ query (u, c, ip, desc) $ statement sql
   (contrazip4
    (EN.nullableValue EN.int4)
    (EN.value EN.int4)
-   (EN.nullableValue EN.inet)
+   (EN.value EN.inet)
    (EN.nullableValue EN.text))
   (DE.singleRow $ DE.value DE.int4) True
   where
-    sql = "INSERT INTO user_edit"
+    sql = "INSERT INTO user_edit (uid, cid, from_ip, description) VALUES \
+          \($1, $2, $3, $4) RETURNING sid"
 
 handleEditInfo
-  :: AppHandler ()
-handleEditInfo = do
+  :: Maybe Banner
+  -> AppHandler ()
+handleEditInfo b = do
   params <- getParams
+  remote <- rqRemote <$> getRequest
   let lookupText n = (hush . decodeUtf8' =<<) . listToMaybe =<< M.lookup n params
   validation <- runExceptT $ do
     c <- maybe (throwE NoComic) (return . fromIntegral . snd) =<< lift getCid
@@ -191,19 +196,37 @@ handleEditInfo = do
         sid <- ExceptT $ insertEdit
           (uid <$> u)
           c
-          Nothing -- TODO remote IP
+          remote
           (lookupText "description")
+        maybe (return ()) (ExceptT . submitBanner sid) b
         insertTagsEpedias sid params
---        when ((moderator <$> u) == (Just True)) saveEdit
-        lift $ writeLBS $ encode $ object $
-          [ "ok" .= True
-          , "msg" .=
-            ("Your submission has been sent to our \
-             \moderators for consideration.\
-             \<a href='/info.html?cid="<>(T.pack $ show c)<>
-             "'>Return to the comic's info page</a>.")]
-  either (\m -> writeLBS $ encode $ object
-                ["msg" .= validationMsg' m]) submit validation
+        let editSuccess = return $ Success (EditSubmitted c)
+        maybe editSuccess
+          (\u' -> bool editSuccess
+                  (saveEdit u' c sid)
+                  (moderator u')) u
+  returnMessage =<< either (return . EValidation) submit validation
+
+saveEdit
+  :: MyData
+  -> Int32
+  -> Int32
+  -> ExceptT Error AppHandler SubmitResult
+saveEdit u c sid = do
+  userSid <- lift $ (fromIntegral . snd <$>) <$> getParamInt "usersid"
+  maybe ( return ())
+    (\sid' -> do
+        acceptBanner <- lift $ (== (Just "1")) <$> getParam "acceptbanner"
+        when (not acceptBanner) $
+          ExceptT (deleteBanner c) >> ExceptT (saveFromSubmit sid' c)
+        ExceptT $ run $ query sid' $ statement
+          "DELETE FROM user_edit WHERE sid=$1"
+          (EN.value EN.int4) DE.unit True) userSid
+  ExceptT $ run $ query (uid u, c, sid) $ statement
+    "SELECT edit_entry($1, $2, $3)"
+    (let e = EN.value EN.int4 in contrazip3 e e e)
+    DE.unit True
+  return $ Success (EditedSuccessfully c)
 
 insertTagsEpedias
   :: Int32

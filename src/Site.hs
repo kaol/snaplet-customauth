@@ -59,9 +59,9 @@ routes = do
         , ("newuser", mayCreateAccount (return ()))
         , ("/s/login", apiLogin)
         -- Moderator interface
-        , ("/s/sinfo/:sid", readSubmit)
+        , ("/s/sinfo/:sid", readUserEdit)
         , ("/s/sinfo2/:sid", readSubmit)
-        , ("/s/dropsubmit/:sid", dropSubmit)
+        , ("/s/dropsubmit/:sid", dropUserEdit)
         , ("/s/viewsubmitbanner/:sid", viewSubmitBanner)
         ]
   let specialTemplates = ["account.html", "newuser.html", "include/cinfo"]
@@ -144,4 +144,4 @@ app = makeSnaplet "piperka" "Piperka application." Nothing $ do
   d <- nestSnaplet "" db $ hasqlInit conn
   addRoutes =<< (liftIO routes)
   addRoutes staticRoutes
-  return $ App h a a' d m elookup tlookup mgr False False Nothing Nothing ads
+  return $ App h a a' d m elookup tlookup mgr False False Nothing Nothing Nothing ads

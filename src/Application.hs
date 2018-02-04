@@ -29,6 +29,7 @@ module Application
   , minimal
   , accountUpdateError
   , actionResult
+  , submitResult
   , adsEnabled
   , defaultUserPrefs
   , defaultUserStats
@@ -58,6 +59,7 @@ import Snap.Snaplet.Session
 
 import Piperka.Account.Types (AccountUpdateError)
 import Piperka.Action.Types
+import Piperka.API.Submit.Types (SubmitResult)
 import Piperka.ComicInfo.Types
 import Piperka.Listing.Types (ViewColumns(..))
 ------------------------------------------------------------------------------
@@ -120,6 +122,7 @@ data App = App
   , _minimal :: Bool
   , _accountUpdateError :: Maybe AccountUpdateError
   , _actionResult :: Maybe (Maybe ActionError, Maybe Action)
+  , _submitResult :: Maybe SubmitResult
   , _adsEnabled :: Bool
   }
 

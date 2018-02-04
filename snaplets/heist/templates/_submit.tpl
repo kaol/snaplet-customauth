@@ -57,12 +57,12 @@
 </h:ifMode>
 <h:ifMode mode="[Moderate]">
   <span class="script hasbanner">
-    <input type="checkbox" id="acceptbanner" name="acceptbanner"/>
+    <input type="checkbox" id="acceptbanner" name="acceptbanner" value="1"/>
     <label for="acceptbanner">Approve banner</label>
   </span>
 </h:ifMode>
 <span class="script show">
-  <h:ifMode mode="[Edit]">
+  <h:ifMode mode="[Edit,Moderate]">
     <button class="hideafterdone" type="submit" disabled="1">Submit</button>
   </h:ifMode>
   <h:ifMode mode="[Submit]">

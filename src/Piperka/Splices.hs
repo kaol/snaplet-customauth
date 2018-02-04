@@ -34,6 +34,7 @@ import Backend()
 import Piperka.Account
 import Piperka.Action.Splices
 import Piperka.Action.Types
+import Piperka.API.Submit.Splices
 import Piperka.Auth (currentUserPlain)
 import Piperka.Auth.Splices
 import Piperka.OAuth2.Splices
@@ -53,6 +54,7 @@ piperkaSplices
   :: AppInit
   -> Splices (C.Splice AppHandler)
 piperkaSplices ini = do
+  "submitAPI" ## submitAPISplices
   "script" ## hashTaggedNode "script" "src"
   "stylesheet" ## hashTaggedNode "link" "href"
   "subscribeForm" ## callTemplate "_subscribe"

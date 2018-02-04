@@ -11,7 +11,8 @@ module Piperka.API (
   , apiLogin
   -- Moderator actions
   , readSubmit
-  , dropSubmit
+  , readUserEdit
+  , dropUserEdit
   , viewSubmitBanner
   ) where
 

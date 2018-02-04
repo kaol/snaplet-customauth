@@ -1,5 +1,5 @@
-var session = /p_session=([0-9a-z-]+)/.exec(document.cookie)
-session = session != null ? session[1] : null;
+var csrf_ham = /csrf_ham=([0-9a-z-]+)/.exec(document.cookie);
+csrf_ham = csrf_ham ? csrf_ham[1] : null;
 
 (function( $ ){
     $.fn.pModerate = function() {
@@ -31,7 +31,7 @@ session = session != null ? session[1] : null;
 	    $('#removeedit').off('click');
 	    $('#removeedit').one('click', function(){
 		$.ajax({url:'/s/dropsubmit/'+sid,
-			data:{'csrf_ham':session},
+			data:{'csrf_ham':csrf_ham},
 			type:'POST',
 			success:function(rpy){
 			    if (rpy.ok) {

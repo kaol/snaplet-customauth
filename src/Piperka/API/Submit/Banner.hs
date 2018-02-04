@@ -14,6 +14,7 @@ module Piperka.API.Submit.Banner
 
 import Contravariant.Extras.Contrazip
 import Control.Exception
+import Control.Monad (join)
 import Control.Monad.Trans
 import Control.Monad.Trans.Except
 import Data.ByteString (ByteString)
@@ -33,65 +34,78 @@ import Snap.Snaplet.Hasql
 import Snap.Util.FileUploads
 import System.Directory (removeFile)
 import System.Exit (ExitCode(..))
+import System.Posix.Files
 import System.Process.ByteString (readProcessWithExitCode)
 
 import Application
+import Piperka.API.Submit.Types
+
+import Debug.Trace
 
 data Format = JPG | PNG | GIF
-
-instance Show Format where
-  show JPG = "jpg"
-  show PNG = "png"
-  show GIF = "gif"
 
 parseFormat
   :: (Eq a, IsString a)
   => a
   -> Maybe Format
-parseFormat "jpeg" = Just JPG
-parseFormat "png" = Just PNG
-parseFormat "gif" = Just GIF
+parseFormat "image/jpeg" = Just JPG
+parseFormat "image/png" = Just PNG
+parseFormat "image/gif" = Just GIF
 parseFormat _ = Nothing
 
-data BannerError =
-    Violation PolicyViolationException
-  | NoImage
-  | AnimatedImage
-  | InvalidMime
-  | InvalidDimensions Int Int
-  | UnknownError
-
 type Banner = (Format, ByteString)
+
+formatMime
+  :: IsString a
+  => Format
+  -> a
+formatMime JPG = "image/jpeg"
+formatMime PNG = "image/png"
+formatMime GIF = "image/gif"
+
+formatExtension
+  :: IsString a
+  => Format
+  -> a
+formatExtension JPG = "jpg"
+formatExtension PNG = "png"
+formatExtension GIF = "gif"
 
 partHandler
   :: PartInfo
   -> Either PolicyViolationException FilePath
-  -> IO (Either BannerError Banner)
-partHandler _ errFile = runExceptT $ do
-  file <- either (throwE . Violation) return errFile
-  (ex, sOut, sErr) <- liftIO $ readProcessWithExitCode "bin/check_banner" [file] B.empty
-  case ex of
-    ExitSuccess -> do
-      mime <- maybe (throwE InvalidMime) return $ parseFormat sOut
-      content <- lift $ B.readFile file
-      return (mime, content)
-    ExitFailure 10 -> throwE NoImage
-    ExitFailure 11 -> throwE AnimatedImage
-    ExitFailure 12 -> throwE InvalidMime
-    ExitFailure 13 -> do
-      let xs = catMaybes $ map (fmap fst . readInt) $ split ' ' sErr
-      case xs of
-        [w,h] -> throwE $ InvalidDimensions h w
-        _ -> throwE UnknownError
-    _ -> throwE UnknownError
+  -> IO (Maybe (Either BannerError Banner))
+partHandler _ errFile = do
+  let sz = fmap fileSize . getFileStatus
+  size <- either (const $ return Nothing) ((Just <$>) . sz) errFile
+  if size == (Just 0) then return Nothing else (Just <$>) $ runExceptT $ do
+    file <- either (throwE . Violation) return errFile
+    (ex, sOut, sErr) <- liftIO $ readProcessWithExitCode "bin/check_banner"
+                        [file] B.empty
+    case ex of
+      ExitSuccess -> do
+        format <- maybe (throwE InvalidMime) return $ parseFormat sOut
+        content <- lift $ B.readFile file
+        return (format, content)
+      ExitFailure 10 -> throwE NoImage
+      ExitFailure 11 -> throwE AnimatedImage
+      ExitFailure 12 -> throwE InvalidMime
+      ExitFailure 13 -> do
+        let xs = catMaybes $ map (fmap fst . readInt) $ split ' ' sErr
+        case xs of
+          [w,h] -> throwE $ InvalidDimensions h w
+          _ -> throwE UnknownError
+      _ -> throwE UnknownError
 
 receiveBanner
   :: AppHandler (Maybe (Either BannerError Banner))
 receiveBanner =
-  let uploadPolicy = setMaximumNumberOfFormInputs 1 defaultUploadPolicy in
-    listToMaybe <$> handleFileUploads "tmp" uploadPolicy
-    (const $ allowWithMaximumSize (getMaximumFormInputSize uploadPolicy))
-    partHandler
+  let uploadPolicy = setMaximumNumberOfFormInputs 200 defaultUploadPolicy
+      partPolicy part = trace (show part) $ if partFieldName part == "banner"
+        then allowWithMaximumSize (getMaximumFormInputSize uploadPolicy)
+        else disallow
+  in join . listToMaybe <$> handleFileUploads "tmp" uploadPolicy
+     partPolicy partHandler
 
 submitBanner
   :: Int32
@@ -99,7 +113,7 @@ submitBanner
   -> AppHandler (Either Error ())
 submitBanner sid (format, content) = run $ query (sid, format, content) $
   statement sql (contrazip3 (EN.value EN.int4)
-                 (T.pack . show >$< EN.value EN.text) (EN.value EN.bytea))
+                 (formatMime >$< EN.value EN.text) (EN.value EN.bytea))
   DE.unit True
   where
     sql = "INSERT INTO submit_banner (sid, mime, banner) VALUES ($1, $2, $3)"
@@ -109,7 +123,7 @@ saveBanner
   -> Banner
   -> AppHandler (Either Error ())
 saveBanner c (format, content) = do
-  let fileName = (show c) <> "." <> (show format)
+  let fileName = show c <> "." <> formatExtension format
   liftIO $ B.writeFile ("banners/" <> fileName) content
   run $ query (c, fileName) $ statement sql
     (contrazip2 (EN.value EN.int4) (T.pack >$< EN.value EN.text)) DE.unit True

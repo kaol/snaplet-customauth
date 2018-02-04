@@ -162,7 +162,7 @@
       </p>
 
       <p>
-	<form class="submitcomic script show">
+	<h:csrfForm class="submitcomic script show">
 	  <input type="hidden" name="formtype" value="submit" />
 	  Title: <input type="text" name="title">
 	  <p>Home page: <input type="text" name="url" value="${h:preHomepage}">
@@ -175,7 +175,7 @@
 	    comic might not be suitable for Piperka.
 	  </p>
 	  <h:submitForm/>
-	</form>
+	</h:csrfForm>
 
       <p class="script show">
 	And if your comic begins like "The Comic", check around C

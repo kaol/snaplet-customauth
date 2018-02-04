@@ -1,9 +1,6 @@
-<h:ifLoggedIn>
-  <h:form>
+<h:form>
+  <h:ifLoggedIn>
     <input type="hidden" name="csrf_ham" value="${h:csrf}"/>
-    <h:apply-form-content/>
-  </h:form>
-</h:ifLoggedIn>
-<h:ifLoggedOut>
+  </h:ifLoggedIn>
   <h:apply-form-content/>
-</h:ifLoggedOut>
+</h:form>

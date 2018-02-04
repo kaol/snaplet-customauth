@@ -31,6 +31,12 @@ function submitSuccess(reply) {
     }
 }
 
+function submitError() {
+    enableSubmitcomic();
+    $('.submitcomic button[type=submit]').removeAttr('disabled');
+    $('#msgdiv').hide().html("Unexpected error").slideDown();
+}
+
 function enableSubmitcomic() {
     var submitButton = $('.submitcomic button[type=submit]');
     submitButton.removeAttr('disabled');
@@ -39,6 +45,7 @@ function enableSubmitcomic() {
 	var options = {url: '/s/submit',
 		       type: 'POST',
 		       dataType: 'json',
+		       error: submitError,
 		       success: submitSuccess
 		      };
 	if (window.FormData) {

@@ -248,3 +248,27 @@ CREATE MATERIALIZED VIEW alphabet_index AS
            FROM comics) s ON ((lower((alphabets.letter)::text) > s.canon)))
   GROUP BY alphabets.letter
   ORDER BY alphabets.letter;
+
+CREATE OR REPLACE FUNCTION edit_entry(uid_ int, cid_ int, sid_ int) RETURNS void AS $$
+BEGIN
+  DELETE FROM comic_tag WHERE cid=$2;
+  INSERT INTO comic_tag (cid, tagid) SELECT cid, tagid FROM user_edit JOIN submit_tag USING (sid) WHERE sid=$3;
+  DELETE FROM external_entry WHERE cid=$2;
+  INSERT INTO external_entry (cid, epid, entry) SELECT cid, epid, entry FROM user_edit JOIN external_entry_submit USING (sid) WHERE sid=$3;
+  UPDATE comics SET description=(SELECT description FROM user_edit WHERE sid=$3) WHERE cid=$2;
+  UPDATE moderator SET last_moderate=now() WHERE uid=$1;
+  DELETE FROM user_edit WHERE sid=$3;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION drop_sid_friends() RETURNS trigger AS $$
+BEGIN
+  DELETE FROM submit_tag WHERE sid=OLD.sid;
+  DELETE FROM external_entry_submit WHERE sid=OLD.sid;
+  DELETE FROM submit_banner WHERE sid=OLD.sid;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER drop_sid_friends AFTER DELETE ON user_edit FOR EACH ROW EXECUTE PROCEDURE drop_sid_friends();
+CREATE TRIGGER drop_sid_friends AFTER DELETE ON submit FOR EACH ROW EXECUTE PROCEDURE drop_sid_friends();
