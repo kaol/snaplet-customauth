@@ -43,6 +43,7 @@ decodeComicInfo taglookup =
                                       <*> (liftA (localTimeToUTC utc) $
                                            DE.compositeValue DE.timestamp)))
   <*> DE.nullableValue DE.text
+  <*> (liftA (maybe "" id) $ DE.nullableValue DE.text)
   <*> (liftA (taglookup . map fromIntegral) $
        DE.value (DE.array $ DE.arrayDimension replicateM $ DE.arrayValue DE.int4))
 
@@ -88,7 +89,7 @@ comicInfoFetch taglookup =
           \(SELECT url_base||name||url_tail FROM updates WHERE cid=c.cid AND name IS NOT NULL ORDER BY ord DESC LIMIT 1), \
           \(SELECT name IS NULL FROM updates WHERE cid=c.cid ORDER BY ord DESC LIMIT 1), \
           \added_on, EXISTS (SELECT uid FROM subscriptions WHERE cid=c.cid AND uid=u.uid) AS subscribed, \
-          \mapped, null AS dead, file AS banner, \
+          \mapped, null AS dead, file AS banner, description, \
           \COALESCE((SELECT array_agg(tagid) FROM comic_tag WHERE cid=c.cid), '{}') AS tags \
           \FROM comics AS c LEFT JOIN banners USING (cid) \
           \LEFT JOIN users AS u ON (u.uid=$1) WHERE cid=$2"
@@ -106,7 +107,7 @@ deadInfoFetch taglookup =
           \(SELECT url_base||name||url_tail FROM updates WHERE cid=c.cid AND name IS NOT NULL ORDER BY ord DESC LIMIT 1), \
           \(SELECT name IS NULL FROM updates WHERE cid=c.cid ORDER BY ord DESC LIMIT 1), \
           \added_on, EXISTS (SELECT true FROM subscriptions WHERE cid=c.cid AND uid=u.uid) AS subscribed, \
-          \false, (reason, removed_on), file AS banner, \
+          \false, (reason, removed_on), file AS banner, description, \
           \COALESCE((SELECT array_agg(tagid) FROM comic_tag WHERE cid=c.cid), '{}') AS tags \
           \FROM graveyard AS c LEFT JOIN banners USING (cid) \
           \LEFT JOIN users AS u ON (u.uid=$1) WHERE c.cid=$2"

@@ -45,4 +45,7 @@
       <span h:description="" h:class=""><h:name/></span>
     </h:categories>
   </p>
+  <div>
+    <h:description/>
+  </div>
 </h:comicInfo>

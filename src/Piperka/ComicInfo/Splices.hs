@@ -151,6 +151,7 @@ comicInfoSplices = do
   "ifExternLinks" ## renderIfExternLinks
   "ifAddDate" ## renderIfAddDate
   "categories" ## renderCategories
+  "description" ## renderDescription
   where
     renderBanner n = do
       x <- withSplices runChildren
@@ -196,7 +197,7 @@ comicInfoSplices = do
     renderExternLink = manyWithSplices runChildren $
                        mapV (pureSplice . textSplice) $ do
                          "url" ## \n -> (base n <> urlPart n)
-                         "description" ## description
+                         "description" ## eDescription
                          "siteName" ## epediaTagName
     renderIfAddDate n =
       manyWithSplices runChildren
@@ -211,3 +212,4 @@ comicInfoSplices = do
             "class" ## bool [(T.pack "class", "odd")] [] . fst
       in manyWith runChildren splices attrSplices $
          (zip (cycle [False, True]) . tags) <$> n
+    renderDescription = pureSplice . textSplice $ description

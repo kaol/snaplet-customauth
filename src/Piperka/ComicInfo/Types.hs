@@ -24,6 +24,7 @@ data ComicInfo = ComicInfo
   , mapped :: Bool
   , dead :: Maybe (Text, UTCTime)
   , banner :: Maybe Text
+  , description :: Text
   , tags :: [ComicTag]
   , crawlErrors :: Vector CrawlError
   , extern :: [ExternalEntry]
@@ -38,7 +39,7 @@ data CrawlError = CrawlError
   }
 
 data ExternalEntry = ExternalEntry
-  { description :: Text
+  { eDescription :: Text
   , epediaTag :: Text
   , epediaTagName :: Text
   , epid :: Int
