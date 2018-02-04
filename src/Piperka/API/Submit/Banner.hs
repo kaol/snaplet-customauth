@@ -40,8 +40,6 @@ import System.Process.ByteString (readProcessWithExitCode)
 import Application
 import Piperka.API.Submit.Types
 
-import Debug.Trace
-
 data Format = JPG | PNG | GIF
 
 parseFormat
@@ -101,7 +99,7 @@ receiveBanner
   :: AppHandler (Maybe (Either BannerError Banner))
 receiveBanner =
   let uploadPolicy = setMaximumNumberOfFormInputs 200 defaultUploadPolicy
-      partPolicy part = trace (show part) $ if partFieldName part == "banner"
+      partPolicy part = if partFieldName part == "banner"
         then allowWithMaximumSize (getMaximumFormInputSize uploadPolicy)
         else disallow
   in join . listToMaybe <$> handleFileUploads "tmp" uploadPolicy
