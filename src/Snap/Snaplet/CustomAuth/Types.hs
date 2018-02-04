@@ -28,7 +28,7 @@ data AuthFailure e =
   deriving (Show)
 
 data CreateFailure =
-    MissingName | NameUsed | InvalidName
+    MissingName | InvalidName
   | DuplicateName
   | PasswordFailure PasswordFailure
   | OAuth2Failure OAuth2Failure

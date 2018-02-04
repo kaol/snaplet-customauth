@@ -4,7 +4,7 @@
     You already have an account.
   </h:ifLoggedIn>
   <h:ifLoggedOut>
-    <form method="post" action="/s/newuser">
+    <form method="post">
       <h:paramAttrs>
 	User name: <input type="text" name="_new_login" h:value="_new_login" maxlength="40"/>
 	<p>Password: <input type="password" name="_new_password" maxlength="40"/></p>

@@ -11,16 +11,16 @@ import Control.Monad.Trans
 import Data.Maybe
 import qualified Data.Text as T
 import Data.Text (Text)
-import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import Data.Text.Encoding (encodeUtf8)
 import Data.Map.Syntax
 import qualified Hasql.Session
 import Heist
 import Heist.Compiled
-import Snap
 import Text.XmlHtml
 
 import Application
 import Piperka.Error.Splices
+import Piperka.Util (getParamText)
 import Snap.Snaplet.CustomAuth.Types
 import Heist.Compiled.Extra
 
@@ -40,8 +40,8 @@ paramValueSplice =
 paramsFromQuery
   :: Text
   -> RuntimeSplice AppHandler [(Text, Text)]
-paramsFromQuery paramName = (lift $ getParam (encodeUtf8 paramName)) >>=
-  return . maybe [] (\a -> [("value", decodeUtf8 a)])
+paramsFromQuery paramName = (lift $ getParamText (encodeUtf8 paramName)) >>=
+  return . maybe [] (\a -> [("value", a)])
 
 
 accountCreateFailSplices

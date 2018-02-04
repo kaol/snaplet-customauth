@@ -141,7 +141,7 @@ doPrepare u p = withTop db $ run $ query (p, extractUid <$> u) stmt
     stmt = statement sql encode decode True
     encode = contrazip2 (EN.value EN.text) (EN.nullableValue EN.int4)
     decode = DE.singleRow $ DE.value DE.int4
-    sql = "select auth_create_password$1, $2)"
+    sql = "select auth_create_password($1, $2)"
 
 doCancelPrepare
   :: AuthID

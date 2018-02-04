@@ -22,7 +22,7 @@
     <h:on err="InvalidName">
       Invalid account name.
     </h:on>
-    <h:on err="NameUsed">
+    <h:on err="DuplicateName">
       Account name reserved.
     </h:on>
     <h:on err="PasswordFailure Mismatch">
@@ -62,14 +62,6 @@
       You tried to log in via oauth2 but you are already logged in on
       Piperka.
     </h:on>
-    <h:on err="OAuth2Failure AttachNotLoggedIn">
-      You tried to attach an account via OAuth2 to a Piperka account
-      but you are not logged in.
-    </h:on>
-    <h:on err="OAuth2Failure AlreadyAttached">
-      You tried to attach an account via OAuth2 to a Piperka account
-      but it was already attached.
-    </h:on>
     <h:on err="OAuth2Failure AccessTokenFetchError">
       Failed to retrieve access token fron an OAuth2 provider.
     </h:on>
@@ -78,6 +70,14 @@
     </h:providerError>
   </h:createFailure>
   <h:actionFailure>
+    <h:on err="AttachNotLoggedIn">
+      You tried to attach an account via OAuth2 to a Piperka account
+      but you are not logged in.
+    </h:on>
+    <h:on err="AlreadyAttached">
+      You tried to attach an account via OAuth2 to a Piperka account
+      but it was already attached.
+    </h:on>
     <h:on err="ActionTimeout">
       Timeout validating action.
     </h:on>
