@@ -200,7 +200,7 @@
       Piperka.net copyright Kari Pahula &lt;<a
       href="kaol@piperka.net">kaol@piperka.net</a>&gt;
       2005-2018. Descriptions are user submitted and Piperka claims no
-      copyright over them.  Banners copyright their respoective
+      copyright over them.  Banners copyright their respective
       authors.
     </div>
   </body>
