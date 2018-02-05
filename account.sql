@@ -154,6 +154,10 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER invalidate_user_stats_updates AFTER DELETE OR INSERT ON updates FOR EACH ROW EXECUTE PROCEDURE invalidate_user_stats_cid();
 CREATE TRIGGER invalidate_user_stats_updates AFTER DELETE ON comics FOR EACH ROW EXECUTE PROCEDURE invalidate_user_stats_cid();
 
+DROP TRIGGER must_have_login_oauth2 ON oauth2_account;
+DROP TRIGGER must_have_login_passwd ON users;
+DROP FUNCTION must_have_login();
+
 CREATE OR REPLACE FUNCTION must_have_login2() RETURNS trigger AS $$
 DECLARE
   n text;
