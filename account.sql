@@ -158,7 +158,7 @@ CREATE OR REPLACE FUNCTION must_have_login2() RETURNS trigger AS $$
 DECLARE
   n text;
 BEGIN
-  IF OLD.uid IN (SELECT uid FROM users) AND NOT EXISTS (SELECT 1 FROM login_method AS lm WHERE OLD.uid = lm.uid AND OLD.lmid <> lm.lmid) THEN
+  IF OLD.uid IN (SELECT uid FROM users) AND NOT EXISTS (SELECT 1 FROM login_method AS lm WHERE OLD.uid = lm.uid AND OLD.lmid <> lm.lmid) AND OLD.uid NOT IN (SELECT uid FROM users WHERE passwd IS NOT NULL) THEN
     n := (SELECT name FROM users WHERE uid=OLD.uid);
     RAISE EXCEPTION 'Account % with no login credentials %', n, old.uid USING ERRCODE = 'PI001';
     RETURN NULL;
