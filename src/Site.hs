@@ -25,7 +25,7 @@ import Data.Text.Encoding (decodeUtf8)
 import Heist
 import Network.HTTP.Client.TLS
 import Prelude hiding (readFile)
-import Snap.Core (Cookie(..), ifTop)
+import Snap.Core (Cookie(..), ifTop, modifyResponse, setResponseCode)
 import Snap.Snaplet
 import Snap.Snaplet.CustomAuth hiding (sessionCookieName)
 import Snap.Snaplet.Hasql
@@ -144,4 +144,5 @@ app = makeSnaplet "piperka" "Piperka application." Nothing $ do
   d <- nestSnaplet "" db $ hasqlInit conn
   addRoutes =<< (liftIO routes)
   addRoutes staticRoutes
+  addRoutes [("", modifyResponse (setResponseCode 404) >> cRender "404_")]
   return $ App h a a' d m elookup tlookup mgr False False Nothing Nothing Nothing ads
