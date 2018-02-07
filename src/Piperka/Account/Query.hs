@@ -58,7 +58,7 @@ getAccountSettings u = runExceptT $ do
               <*> DE.nullableValue DE.text
     sql1 = "SELECT privacy, \
            \uid IN (SELECT uid FROM login_method_passwd WHERE uid IS NOT NULL), \
-           \email, writeup, bookmark_sort, offset_bookmark_by_one, bookmark_sort \
+           \email, writeup, bookmark_sort, offset_bookmark_by_one, hold_bookmark \
            \FROM users WHERE uid=$1"
     sql2 = "SELECT name, display_name, identification FROM oauth2_provider LEFT JOIN \
            \(SELECT identification, opid FROM login_method_oauth2 WHERE uid=$1) AS x \

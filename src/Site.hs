@@ -42,6 +42,7 @@ import Piperka.ComicInfo.Tag
 import Piperka.ComicInfo.External
 import Piperka.OAuth2
 import Piperka.Splices
+import Piperka.Update.Handlers
 
 ------------------------------------------------------------------------------
 -- | The application's routes.
@@ -64,7 +65,11 @@ routes = do
         , ("/s/dropsubmit/:sid", dropUserEdit)
         , ("/s/viewsubmitbanner/:sid", viewSubmitBanner)
         ]
-  let specialTemplates = ["account.html", "newuser.html", "include/cinfo"]
+  let specialTemplates = [ "account.html"
+                         , "newuser.html"
+                         , "include/cinfo"
+                         , "updates.html"
+                         ]
   templateRoutes <-
     (map fromString .
      filter (not . (`elem` specialTemplates)) .
@@ -81,6 +86,8 @@ routes = do
     , ("newuser.html", authHandler False $
         mayCreateAccount $ cRender "newuser.html")
     , ("include/cinfo", authHandler True $ cRender "include/cinfo")
+    , ("updates.html", authHandler False $
+        mayRedir >> cRender "updates.html")
     , ("", ifTop $ authHandler False $ cRender "index")
     , ("index.html", authHandler False $ cRender "index")
     ]
@@ -144,5 +151,6 @@ app = makeSnaplet "piperka" "Piperka application." Nothing $ do
   d <- nestSnaplet "" db $ hasqlInit conn
   addRoutes =<< (liftIO routes)
   addRoutes staticRoutes
-  addRoutes [("", modifyResponse (setResponseCode 404) >> cRender "404_")]
+  addRoutes [("", bracketDbOpen $ authHandler False $
+               modifyResponse (setResponseCode 404) >> cRender "404_")]
   return $ App h a a' d m elookup tlookup mgr False False Nothing Nothing Nothing ads
