@@ -57,7 +57,7 @@ renderWithCid n = do
 
   let success n' = withSplices runChildren
                    ((emptySplices' ["dead", "missing"]) <>
-                    ("exists" ## renderExists deadPage)) n'
+                    ("exists" ## renderExists)) n'
 
   let failure n' = do
         sqlErr <- withSplices (callTemplate "_sqlErr") sqlErrorSplices $
@@ -98,8 +98,8 @@ render deadPage success failure n = do
             ("cid" ## pureSplice . textSplice $
              maybe "" (T.decodeLatin1 . fst)) n') n
 
-renderExists :: Bool -> RuntimeAppHandler ComicInfo
-renderExists deadPage = withSplices runChildren $ do
+renderExists :: RuntimeAppHandler ComicInfo
+renderExists = withSplices runChildren $ do
   "related" ## const $ return mempty -- TODO
   "comicInfo" ## \n -> withSplices (callTemplate "/include/cinfo")
                        comicInfoSplices n

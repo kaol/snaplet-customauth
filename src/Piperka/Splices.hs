@@ -10,7 +10,7 @@ module Piperka.Splices
   where
 
 import Control.Applicative ((<|>))
-import Control.Error.Util (note, bool)
+import Control.Error.Util (note, bool, hush)
 import Control.Lens
 import Control.Monad (when)
 import Control.Monad.State
@@ -19,8 +19,9 @@ import Data.Map.Syntax
 import Data.Maybe
 import Data.Monoid
 import qualified Data.Text as T
-import Data.Text.Encoding (encodeUtf8)
+import Data.Text.Encoding (encodeUtf8, decodeUtf8')
 import Data.UUID
+import qualified Database.Memcache.Client as M
 import Heist
 import Heist.Compiled as C
 import qualified Heist.Compiled.Extra as C
@@ -65,11 +66,17 @@ piperkaSplices ini = do
       (lift $ view adsEnabled)
   "adInit" ## callTemplate "_projectWonderful"
   "paramAttrs" ## withLocalSplices mempty ("value" ## paramValue) runChildren
+  "updateStatus" ## updateStatus
   "piperka" ## renderPiperka
 -- Splice definition overridden if used via withCid.
   "comicInfo" ## renderMinimal renderComicInfo
   <> messagesSplices
   where
+    updateStatus = return $ yieldRuntimeText $ do
+      mc <- lift $ view memcache
+      v <- liftIO $ (hush . decodeUtf8' . (\(v,_,_) -> v) =<<) <$>
+        M.get mc "updatestatus"
+      return $ maybe "" id v
     subscribeForm = do
       action <- X.getAttribute "action" <$> getParamNode
       withLocalSplices mempty

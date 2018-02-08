@@ -50,6 +50,7 @@ Executable piperka-snap
     dlist                     == 0.8.*,
     contravariant             >= 1.3     && < 2,
     contravariant-extras      == 0.3.*,
+    memcache                  >= 0.2     && < 0.3,
     hasql                     >= 0.19.18 && < 0.20,
     postgresql-error-codes    >= 1.0.1   && < 1.1,
     network-ip                >= 0.3     && < 0.4,

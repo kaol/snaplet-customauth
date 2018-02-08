@@ -22,6 +22,7 @@ import Data.Monoid
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8)
+import Database.Memcache.Client as M
 import Heist
 import Network.HTTP.Client.TLS
 import Prelude hiding (readFile)
@@ -122,6 +123,7 @@ app = makeSnaplet "piperka" "Piperka application." Nothing $ do
   ads <- liftIO $ Data.Configurator.lookupDefault False cfg "ads"
   conn <- liftIO $ Data.Configurator.lookupDefault "postgresql://kaol@/piperka" cfg "db"
   mgr <- liftIO newTlsManager
+  mc <- liftIO $ M.newClient [M.def] M.def
   (~(L1 elookup): ~(L2 tlookup): ~(L3 tfp): ~(L3 efp):jsHash) <- liftIO $
     (map $ either error id) <$>
     withPool (4+length jsFiles) (flip parallel
@@ -153,4 +155,5 @@ app = makeSnaplet "piperka" "Piperka application." Nothing $ do
   addRoutes staticRoutes
   addRoutes [("", bracketDbOpen $ authHandler False $
                modifyResponse (setResponseCode 404) >> cRender "404_")]
-  return $ App h a a' d m elookup tlookup mgr False False Nothing Nothing Nothing ads
+  return $ App h a a' d m elookup tlookup mgr mc
+    False False Nothing Nothing Nothing ads

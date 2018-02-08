@@ -35,6 +35,8 @@
       </p>
     </form>
     <p><a href="revert.html">Revert</a> updates.</p>
+    <h2>Updated comics</h2>
+    <h:updateStatus/>
     <h:listing mode="Update"/>
   </h:ifLoggedIn>
 </h:piperka>

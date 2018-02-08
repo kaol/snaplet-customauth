@@ -25,6 +25,7 @@ module Application
   , taglookup
   , extlookup
   , httpManager
+  , memcache
   , suppressError
   , minimal
   , accountUpdateError
@@ -46,6 +47,7 @@ import Data.ByteString (ByteString)
 import Data.Text as T
 import Data.Int
 import Data.UUID
+import Database.Memcache.Client (Client)
 import Control.Monad.State
 import qualified Hasql.Session
 import Heist (RuntimeSplice)
@@ -117,6 +119,7 @@ data App = App
   , _extlookup :: Int -> Text -> Maybe ExternalEntry
   , _taglookup :: [Int] -> [ComicTag]
   , _httpManager :: Manager
+  , _memcache :: Client
   -- Used when there's a template specific way of presenting an error.
   , _suppressError :: Bool
   , _minimal :: Bool
