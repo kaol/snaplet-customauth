@@ -175,7 +175,7 @@
 	      but this action failed the check to see that this request
 	      originated from Piperka.  Please verify that you meant to
 	      do this.
-	      <h:csrfForm>
+	      <h:csrfForm method="post">
 		<h:actionInputs>
 		  <input type="hidden" name="${h:name}" value="${h:value}"/>
 		</h:actionInputs>
