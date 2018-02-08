@@ -57,7 +57,7 @@ piperkaSplices ini = do
   "submitAPI" ## submitAPISplices
   "script" ## hashTaggedNode "script" "src"
   "stylesheet" ## hashTaggedNode "link" "href"
-  "subscribeForm" ## callTemplate "_subscribe"
+  "subscribeForm" ## subscribeForm
   "submit" ## renderSubmit ini
   "ad" ## do
     x <- runChildren
@@ -70,6 +70,11 @@ piperkaSplices ini = do
   "comicInfo" ## renderMinimal renderComicInfo
   <> messagesSplices
   where
+    subscribeForm = do
+      action <- X.getAttribute "action" <$> getParamNode
+      withLocalSplices mempty
+        ("action" ## const $ return $ maybe [] (\x -> [("action", x)]) action)
+        $ callTemplate "_subscribe"
     hashTaggedNode tagName srcAttr = do
       node <- getParamNode
       let src = fromJust $ X.getAttribute srcAttr node

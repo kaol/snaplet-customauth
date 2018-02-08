@@ -14,7 +14,7 @@
 		<h:subscribeForm/>
 	      </true>
 	      <false>
-		<h:csrfForm method="post" action="${h:thisPage}">
+		<h:csrfForm method="post">
 		  <input type="hidden" name="unsubscribe" value="${h:cid}"/>
 		  <input type="submit" name="action" value="Unsubscribe"/>
 		</h:csrfForm>

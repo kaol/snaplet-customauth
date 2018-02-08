@@ -28,8 +28,6 @@ actionSplices
   :: Splice AppHandler
   -> Splices (RuntimeAppHandler (Maybe ActionError, Maybe Action))
 actionSplices contentSplice = do
-  -- Use to direct user to updates.html page on form submit
-  "thisPage" ## const $ return $ yieldPureText "updates.html"
   "bookmark" ## renderBookmark
   "logout" ## renderLogout
   "csrfFail" ## renderCsrfFail

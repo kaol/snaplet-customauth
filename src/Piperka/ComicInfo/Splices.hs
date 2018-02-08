@@ -100,9 +100,6 @@ render deadPage success failure n = do
 
 renderExists :: Bool -> RuntimeAppHandler ComicInfo
 renderExists deadPage = withSplices runChildren $ do
-  "thisPage" ## pureSplice . textSplice $
-    ((if deadPage then "deadinfo.html?cid=" else "info.html?cid=") <>) .
-    T.pack . show . cid
   "related" ## const $ return mempty -- TODO
   "comicInfo" ## \n -> withSplices (callTemplate "/include/cinfo")
                        comicInfoSplices n

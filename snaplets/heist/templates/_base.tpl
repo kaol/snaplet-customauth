@@ -127,7 +127,7 @@
 	      <h:ifLoggedIn>
 		<p>
 		  If you wish, you can set the bookmark for this
-		  comic: <h:subscribeForm/>
+		  comic: <h:subscribeForm action="updates.html"/>
 		</p>
 	      </h:ifLoggedIn>
 	    </h:recognized>
