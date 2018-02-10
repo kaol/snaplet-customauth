@@ -11,6 +11,8 @@ DROP FUNCTION auth_login(text,text);
 DROP FUNCTION do_login(integer);
 DROP FUNCTION recover_session(uuid);
 
+ALTER TABLE users ADD COLUMN initial_lmid int;
+
 CREATE TABLE login_method_oauth2 (
   opid int NOT NULL,
   identification text NOT NULL,

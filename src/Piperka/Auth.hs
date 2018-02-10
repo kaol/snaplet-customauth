@@ -3,6 +3,7 @@
 module Piperka.Auth (authHandler, currentUserPlain, mayCreateAccount, setCSRFCookie) where
 
 import Control.Monad.State
+import Control.Monad.Trans.Maybe
 import Control.Lens
 import Data.Maybe (isJust)
 import Data.IORef
@@ -53,19 +54,12 @@ currentUserPlain =
 mayCreateAccount
   :: AppHandler ()
   -> AppHandler ()
-mayCreateAccount action = do
-  -- Do nothing if there's a session cookie
-  sesDefined <- withTop auth isSessionDefined
-  if sesDefined then return () else mayCreateAccount' action
-
-mayCreateAccount'
-  :: AppHandler ()
-  -> AppHandler ()
-mayCreateAccount' action = do
-  -- Regular create
-  isCreate <- (== (Just "Create account")) <$> getParam "action"
-  if isCreate then do
-    res <- withTop auth createAccount
-    let nextPage = either (const "newuser.html") (const "welcome_") res
-    cRender nextPage
-    else action
+mayCreateAccount action = maybe action id =<< runMaybeT
+  (do
+      -- Do nothing if there's a session cookie
+      guard =<< (lift $ not <$> withTop auth isSessionDefined)
+      guard =<< (lift $ (== (Just "Create account")) <$> getParam "action")
+      return $ do
+        res <- withTop auth createAccount
+        let nextPage = either (const "newuser.html") (const "welcome_") res
+        cRender nextPage)
