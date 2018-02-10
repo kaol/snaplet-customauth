@@ -226,7 +226,6 @@ BEGIN
   IF uid IS NULL THEN
     RETURN FALSE;
   END IF;
-  DELETE FROM login_method_passwd WHERE login_method_passwd.uid=func.uid;
   PERFORM auth_create_password($3, uid);
   DELETE FROM pwdgen_hash WHERE pwdgen_hash.uid=func.uid;
   RETURN TRUE;
