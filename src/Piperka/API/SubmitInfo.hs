@@ -18,7 +18,6 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Except
 import Data.Aeson
-import Data.Aeson.Types
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import Data.Time.Clock
