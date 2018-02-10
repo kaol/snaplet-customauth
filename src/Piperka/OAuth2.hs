@@ -67,7 +67,7 @@ accountCreated
   -> Handler App ApiAuth ()
 accountCreated usr = do
   withTop auth $ setUser $ defaultUserStats usr
-  cRender "oauth2AccountCreated_"
+  cRender "welcome_"
 
 loginDone
   :: Handler App ApiAuth ()
