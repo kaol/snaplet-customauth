@@ -25,9 +25,9 @@
 	</p>
 	<p>
 	  Redirect type:
-	  <input type="radio" h:holdBookmark="True" name="hold_bookmark" id="b_move" value="0"/>
+	  <input type="radio" h:holdBookmark="False" name="hold_bookmark" id="b_move" value="0"/>
 	  <label for="b_move">Set bookmark on the newest comic page on redirect</label>
-	  <input type="radio" h:holdBookmark="False" name="hold_bookmark" id="b_hold" value="1"/>
+	  <input type="radio" h:holdBookmark="True" name="hold_bookmark" id="b_hold" value="1"/>
 	  <label for="b_hold">Do not move the bookmark</label>
 	</p>
 	<p>
