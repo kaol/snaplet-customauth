@@ -10,6 +10,7 @@ create type integerpair as ("1" integer, "2" integer);
 DROP FUNCTION auth_login(text,text);
 DROP FUNCTION do_login(integer);
 DROP FUNCTION recover_session(uuid);
+DROP FUNCTION recover_session(character varying);
 
 ALTER TABLE users ADD COLUMN initial_lmid int;
 
@@ -275,6 +276,12 @@ BEGIN
   RETURN NULL;
 END;
 $$ LANGUAGE plpgsql;
+
+ALTER TABLE submit_banner ADD COLUMN mime text;
+ALTER TABLE user_edit ALTER COLUMN added_on SET DEFAULT timezone('utc'::text, now());
+ALTER TABLE user_edit ALTER COLUMN description SET NOT NULL;
+ALTER TABLE user_edit ALTER COLUMN from_ip SET NOT NULL;
+ALTER TABLE users ALTER COLUMN display_rows SET DEFAULT 40;
 
 CREATE TRIGGER drop_sid_friends AFTER DELETE ON user_edit FOR EACH ROW EXECUTE PROCEDURE drop_sid_friends();
 CREATE TRIGGER drop_sid_friends AFTER DELETE ON submit FOR EACH ROW EXECUTE PROCEDURE drop_sid_friends();
