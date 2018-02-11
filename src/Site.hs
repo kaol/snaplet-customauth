@@ -22,6 +22,7 @@ import Data.Monoid
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8)
+import Data.Time.Clock
 import Database.Memcache.Client as M
 import Heist
 import Network.HTTP.Client.TLS
@@ -120,6 +121,9 @@ app = makeSnaplet "piperka" "Piperka application." Nothing $ do
         , "/piperka.css"
         , "/qsearch.css"
         ]
+  -- TODO: get offset from current time on cookie creation
+  now <- liftIO getCurrentTime
+  let cookieEnd = addUTCTime (5*365*24*60*60) now
   cfg <- getSnapletUserConfig
   ads <- liftIO $ Data.Configurator.lookupDefault False cfg "ads"
   conn <- liftIO $ Data.Configurator.lookupDefault "postgresql://kaol@/piperka" cfg "db"
@@ -136,7 +140,8 @@ app = makeSnaplet "piperka" "Piperka application." Nothing $ do
   let initData = AppInit efp tfp $
         zip (map T.pack jsFiles) $ map (\ ~(L4 x) -> x) jsHash
   let authSettings =  defAuthSettings
-       & authSetCookie .~ \x -> Cookie "p_session" x Nothing Nothing (Just "/") False True
+       & authSetCookie .~ \x -> Cookie "p_session" x (Just cookieEnd)
+                                Nothing (Just "/") False True
   m <- nestSnaplet "messages" messages $
        initCookieSessionManager "site_key.txt" "messages" Nothing (Just 3600)
   let m' = subSnaplet messages
