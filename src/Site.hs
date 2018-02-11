@@ -98,6 +98,7 @@ staticRoutes = mapped._2 %~ serveDirectory $
   [ ("d", "files/d")
   , ("blog", "files/blog")
   , ("banners", "files/banners")
+  , ("/d/readershistory", "files/readershistory")
   , ("", "static")
   ]
 
