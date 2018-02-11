@@ -28,7 +28,7 @@
     <div id="header" class="hiliteBG">
       <h:ad>
 	<!-- Project Wonderful Ad Box Code -->
-	<div id="pw_adbox_738_1_0"></div>
+	<div id="pw_adbox_738_1_0" style="float: right;"></div>
 	<!-- End Project Wonderful Ad Box Code -->
       </h:ad>
       <a href="/">
