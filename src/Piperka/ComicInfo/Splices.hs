@@ -150,12 +150,9 @@ comicInfoSplices = do
   "categories" ## renderCategories
   "description" ## renderDescription
   where
-    renderBanner n = do
-      x <- withSplices runChildren
-           ("bannerUrl" ## pureSplice . textSplice $ id) $
-           (fromJust . banner) <$> n
-      flip bindLater n $ \info ->
-        if (isJust $ banner info) then codeGen x else return mempty
+    renderBanner n = manyWithSplices runChildren
+      ("bannerUrl" ## pureSplice . textSplice $ id) $
+      ((("/banners/" <>) <$>) . banner) <$> n
     renderReadersLink n = do
       node <- getParamNode
       noLink <- runChildren
