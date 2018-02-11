@@ -9,20 +9,22 @@ module Piperka.ComicInfo.Splices
   where
 
 import Control.Error.Util
+import Control.Exception
 import Control.Monad.Trans
 import Control.Monad.Trans.Except
 import Control.Lens (view)
 import Data.Maybe
 import Data.Monoid
 import Data.Map.Syntax
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
+import qualified Data.Text.IO as IO
+import qualified Data.Vector as V
 import Heist
 import Heist.Compiled
 import Heist.Compiled.Extra
 import qualified HTMLEntities.Text as HTML
 import Snap
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
-import qualified Data.Vector as V
 import qualified Text.XmlHtml as X
 
 import Application
@@ -100,7 +102,11 @@ render deadPage success failure n = do
 
 renderExists :: RuntimeAppHandler ComicInfo
 renderExists = withSplices runChildren $ do
-  "related" ## const $ return mempty -- TODO
+  "related" ## \info -> return $ yieldRuntimeText $ do
+    c <- cid <$> info
+    let fileName = "/srv/piperka.net/files/related/" <> show c
+    liftIO $ catch (IO.readFile fileName)
+      (\e -> let _ = e :: IOException in return "")
   "comicInfo" ## \n -> withSplices (callTemplate "/include/cinfo")
                        comicInfoSplices n
   "ifSubscribed" ## \n -> do
