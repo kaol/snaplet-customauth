@@ -41,6 +41,7 @@ import Piperka.Auth.Splices
 import Piperka.OAuth2.Splices
 import Piperka.Splices.Account
 import Piperka.Splices.Flavor
+import Piperka.Splices.Providers
 import Piperka.Splices.Revert
 import Piperka.Submission
 import Piperka.Submit.Splices
@@ -67,6 +68,7 @@ piperkaSplices ini = do
   "adInit" ## callTemplate "_projectWonderful"
   "paramAttrs" ## withLocalSplices mempty ("value" ## paramValue) runChildren
   "updateStatus" ## updateStatus
+  "providers" ## renderProviders
   "piperka" ## renderPiperka
 -- Splice definition overridden if used via withCid.
   "comicInfo" ## renderMinimal renderComicInfo
