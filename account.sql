@@ -2,17 +2,32 @@ create extension pgcrypto;
 
 alter function do_login(int) owner to piperka;
 alter function do_login(text, text) owner to piperka;
+alter function must_have_login() owner to piperka;
+
+SET ROLE kaol;
+
+DROP FUNCTION recover_session(character varying);
 
 SET ROLE piperka;
 
 create type integerpair as ("1" integer, "2" integer);
 
-DROP FUNCTION auth_login(text,text);
 DROP FUNCTION do_login(integer);
-DROP FUNCTION recover_session(uuid);
-DROP FUNCTION recover_session(character varying);
 
 ALTER TABLE users ADD COLUMN initial_lmid int;
+
+CREATE SEQUENCE lmid_seq;
+
+CREATE TABLE login_method (
+  lmid int NOT NULL PRIMARY KEY DEFAULT nextval('lmid_seq'),
+  uid int,
+  stamp timestamp DEFAULT now()
+);
+
+CREATE TABLE login_method_passwd (
+  hash char(60) NOT NULL,
+  UNIQUE (uid)
+) INHERITS (login_method);
 
 CREATE TABLE login_method_oauth2 (
   opid int NOT NULL,
@@ -188,19 +203,6 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER prune_null_oauth2_login BEFORE INSERT ON login_method_oauth2 FOR EACH ROW EXECUTE PROCEDURE prune_null_oauth2_login();
-
-CREATE SEQUENCE lmid_seq;
-
-CREATE TABLE login_method (
-  lmid int NOT NULL PRIMARY KEY DEFAULT nextval('lmid_seq'),
-  uid int,
-  stamp timestamp DEFAULT now()
-);
-
-CREATE TABLE login_method_passwd (
-  hash char(60) NOT NULL,
-  UNIQUE (uid)
-) INHERITS (login_method);
 
 ALTER TABLE pwdgen_hash ADD COLUMN stamp timestamp DEFAULT now();
 
