@@ -75,6 +75,9 @@ BEGIN
     UPDATE p_session SET last_active = NOW() WHERE ses=session;
     UPDATE users SET last_active = NOW() WHERE users.uid=recover_session.uid;
     SELECT ses FROM p_session WHERE token_for=session INTO csrf_ham;
+    IF csrf_ham IS NULL THEN
+      SELECT token INTO csrf_ham FROM generate_session(uid, session);
+    END IF;
     RETURN QUERY SELECT uid, csrf_ham;
   END IF;
 END;
