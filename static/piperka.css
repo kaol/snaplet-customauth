@@ -4,6 +4,14 @@ background-color: #eee;
 color: black;
 }
 
+form {
+    margin-bottom: 0px;
+}
+
+ul.plain {
+    list-style: none;
+}
+
 .hiliteBG
 {
 background-color: #ddd;
@@ -91,6 +99,7 @@ margin-left:160px;
 padding-left:20px;
 border-top-left-radius: 30px 20px;
 background:#eee;
+min:height:200px;
 }
 
 div#maincornerback {

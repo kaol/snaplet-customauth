@@ -1,6 +1,6 @@
 <h:piperka>
   <h3>Login with...</h3>
-  <ul>
+  <ul class="plain">
     <h:providers>
       <li>
 	<a h:href="/apiAuth/oauth2login/"><h:name/></a>
