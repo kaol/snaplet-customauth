@@ -19,8 +19,8 @@ updateOrderingDecode :: Int32 -> Ordering
 updateOrderingDecode 0 = UserUpdatesDesc
 updateOrderingDecode 1 = UserUpdates
 updateOrderingDecode 2 = TitleAsc
-updateOrderingDecode 3 = UpdateAsc
-updateOrderingDecode _ = UpdateDesc
+updateOrderingDecode 3 = UpdateDesc
+updateOrderingDecode _ = UpdateAsc
 
 updateOptionsRow :: DE.Row UpdateOptions
 updateOptionsRow =

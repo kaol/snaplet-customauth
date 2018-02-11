@@ -26,8 +26,8 @@ parseOrdering _ = TitleAsc
 
 orderingSqlPart :: Ordering -> ByteString
 orderingSqlPart NewDesc = "cid DESC"
-orderingSqlPart UpdateAsc = "(SELECT last_updated FROM comics AS c LEFT JOIN crawler_config USING (cid) WHERE c.cid=comics.cid) ASC NULLS LAST, ordering_form(title)"
-orderingSqlPart UpdateDesc = "(SELECT last_updated FROM comics AS c LEFT JOIN crawler_config USING (cid) WHERE c.cid=comics.cid) DESC NULLS LAST, ordering_form(title)"
+orderingSqlPart UpdateAsc = "(SELECT last_updated FROM comics AS c LEFT JOIN crawler_config USING (cid) WHERE c.cid=x.cid) ASC NULLS LAST, ordering_form(title)"
+orderingSqlPart UpdateDesc = "(SELECT last_updated FROM comics AS c LEFT JOIN crawler_config USING (cid) WHERE c.cid=x.cid) DESC NULLS LAST, ordering_form(title)"
 orderingSqlPart TopDesc = "readers DESC, ordering_form(title)"
 orderingSqlPart TitleAsc = "ordering_form(title)"
 orderingSqlPart UserUpdates = "num ASC, ordering_form(title)"
@@ -75,7 +75,7 @@ comicsFetchSubscribed = fromJust . flip lookup table
     table = map (\o -> (o, statement (sql o)
                            encode3 decodeUserListing True)) allOrderings
     sql o = "SELECT COALESCE(subscribed, false), COALESCE(perm_intr, false), cid, title  \
-            \FROM comics \
+            \FROM comics AS x \
             \CROSS JOIN users \
             \LEFT JOIN (SELECT uid, cid, true AS subscribed \
             \ FROM subscriptions) AS subscribed USING (uid, cid) \
@@ -91,7 +91,7 @@ updatesFetch = fromJust . flip lookup table
                            encode3 (DE.rowsVector $ updateListingRow $ pure Nothing)
                            True)) allOrderings
     sql o = "SELECT num, cid IN (SELECT cid FROM comic_tag \
-            \WHERE tagid IN (59,60,12,13,1)), cid, title FROM comics \
+            \WHERE tagid IN (59,60,12,13,1)), cid, title FROM comics AS x \
             \JOIN comic_remain_frag($1) USING (cid) WHERE num > 0 \
             \order by " <> (orderingSqlPart o) <> " limit $2 offset $3"
 
@@ -107,7 +107,7 @@ updatesDirectLinkFetch = fromJust . flip lookup table
             \WHERE tagid IN (59,60,12,13,1)), \
             \COALESCE((SELECT url FROM redir_url_and_last($1, cid, \
             \CASE WHEN $4 THEN -1 ELSE 0 END)), fixed_head, homepage), \
-            \cid, title FROM comics \
+            \cid, title FROM comics AS x \
             \JOIN comic_remain_frag($1) USING (cid) \
             \WHERE num > 0 \
             \order by " <> (orderingSqlPart o) <> " limit $2 offset $3"
@@ -118,7 +118,7 @@ profileFetchSubscribed = fromJust . flip lookup table
     table = map (\o -> (o, statement (sql o)
                            encode4 decodeUserListing True)) allOrderings
     sql o = "SELECT * FROM (SELECT DISTINCT COALESCE(subscribed, false), \
-            \COALESCE(perm_intr, false), comics.cid, title \
+            \COALESCE(perm_intr, false), comics.cid, title, readers \
             \FROM comics JOIN subscriptions USING (cid) \
             \CROSS JOIN users \
             \LEFT JOIN (SELECT uid, cid, true as subscribed FROM subscriptions) \
@@ -137,7 +137,7 @@ comicsFetch = fromJust . flip lookup table
   where
     table = map (\o -> (o, statement (sql o)
                            encode2 decodeListing True)) allOrderings
-    sql o = "SELECT cid, title FROM comics ORDER BY " <>
+    sql o = "SELECT cid, title FROM comics AS x ORDER BY " <>
             (orderingSqlPart o) <> " LIMIT $1 OFFSET $2"
 
 profileFetch :: Ordering -> Query (Int32, Int32, Int32) (Vector ListingItem)
@@ -145,7 +145,7 @@ profileFetch = fromJust . flip lookup table
   where
     table = map (\o -> (o, statement (sql o)
                            encode3 decodeListing True)) allOrderings
-    sql o = "SELECT cid, title FROM comics \
+    sql o = "SELECT cid, title FROM comics AS x \
             \JOIN subscriptions USING (cid) \
             \WHERE uid=$1 ORDER BY " <>
             (orderingSqlPart o) <> " LIMIT $2 OFFSET $3"

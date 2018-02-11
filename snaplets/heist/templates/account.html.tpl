@@ -52,8 +52,8 @@
 	      <label for="b_upd">Most recently updated first</label>
 	    </li>
 	    <li>
-	      <input type="radio" h:sortBookmark="4" name="bookmark_sort" id="b_upd_desc" value="4"/>
-	      <label for="b_upd_desc">Most recently updated last</label>
+	      <input type="radio" h:sortBookmark="4" name="bookmark_sort" id="b_upd_asc" value="4"/>
+	      <label for="b_upd_asc">Most recently updated last</label>
 	    </li>
 	  </ul>
 	  <!-- </p> Somehow, the parser gets mad if I put the closing tag here. -->
