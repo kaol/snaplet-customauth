@@ -68,6 +68,8 @@ piperkaSplices ini = do
   "adInit" ## callTemplate "_projectWonderful"
   "paramAttrs" ## withLocalSplices mempty ("value" ## paramValue) runChildren
   "updateStatus" ## updateStatus
+  "kaolSubs" ## renderKaolSubs
+  "fortune" ## renderFortune
   "providers" ## renderProviders
   "piperka" ## renderPiperka
 -- Splice definition overridden if used via withCid.
@@ -191,7 +193,6 @@ contentSplices content =
 contentSplices'
   :: Splices (RuntimeAppHandler (Maybe MyData))
 contentSplices' = do
-  "kaolSubs" ## renderKaolSubs
   "ifLoggedIn" ## C.deferMany (C.withSplices C.runChildren loggedInSplices)
   "ifLoggedOut" ## C.conditionalChildren
     (const C.runChildren)
