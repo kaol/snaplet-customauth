@@ -45,8 +45,10 @@ updateAndRedirect = statement sql encode (DE.maybeRow $ DE.value DE.bytea) True
   where
     encode = contrazip3 (EN.value EN.int4) (EN.value EN.int4) (EN.value EN.bool)
     sql = "WITH page AS (\
-          \SELECT url, last_ord AS ord, last_subord AS subord FROM \
-          \redir_url_and_last($1, $2, CASE WHEN $3 THEN -1 ELSE 0 END)), \
+          \SELECT COALESCE(url, fixed_head, homepage) AS url, \
+          \last_ord AS ord, last_subord AS subord FROM \
+          \redir_url_and_last($1, $2, CASE WHEN $3 THEN -1 ELSE 0 END) \
+          \CROSS JOIN comics WHERE cid=$2), \
           \deleted_recent AS (\
           \DELETE FROM recent WHERE uid=$1 AND cid=$2), r AS (\
           \INSERT INTO recent (uid, cid, ord, subord, used_on) SELECT \
