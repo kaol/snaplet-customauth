@@ -33,9 +33,7 @@
 </h:ifMode>
 <h3>Description</h3>
 <p>
-  <textarea cols="50" rows="5" name="description">
-    <h:ifMode mode="[Edit]"><h:description/></h:ifMode>
-  </textarea>
+  <textarea cols="50" rows="5" name="description"><h:ifMode mode="[Edit]"><h:description/></h:ifMode></textarea>
 </p>
 <p>
   <span class="noscript">

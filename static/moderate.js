@@ -58,7 +58,7 @@ csrf_ham = csrf_ham ? csrf_ham[1] : null;
 				} else {
 				    $('.oldbanner').hide();
 				}
-				if (rpy.banner) {
+				if (rpy.newbanner) {
 				    $('.hasbanner.script').show();
 				    $('.hasbanner input[type=checkbox]')[0].checked = true;
 				} else {

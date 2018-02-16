@@ -78,7 +78,7 @@
     <a href="${h:url}">Return to the comic's info page</a>.
   </msg>
   <msg id="13">
-    <a href="${h:url}">Entry</a> edited successfully.
+    <span><a href="${h:url}">Entry</a> edited successfully.</span>
   </msg>
   <msg id="14">
     Invalid form parameters.  Something was off with your submission.

@@ -203,25 +203,35 @@ handleEditInfo b = do
         let editSuccess = return $ Success (EditSubmitted c)
         maybe editSuccess
           (\u' -> bool editSuccess
-                  (saveEdit u' c sid)
+                  (saveEdit u' (isJust b) c sid)
                   (moderator u')) u
   returnMessage =<< either (return . EValidation) submit validation
 
 saveEdit
   :: MyData
+  -> Bool
   -> Int32
   -> Int32
   -> ExceptT Error AppHandler SubmitResult
-saveEdit u c sid = do
-  userSid <- lift $ (fromIntegral . snd <$>) <$> getParamInt "usersid"
-  maybe ( return ())
+saveEdit u b c sid = do
+  -- If the original submit had a banner and we're accepting it,
+  -- transfer its banner to the edit done by the moderator.
+  userSid <- lift $ (fromIntegral . snd <$>) <$> getParamInt "user_sid"
+  haveUserSidBanner <- maybe (return False)
     (\sid' -> do
         acceptBanner <- lift $ (== (Just "1")) <$> getParam "acceptbanner"
-        when (not acceptBanner) $
-          ExceptT (deleteBanner c) >> ExceptT (saveFromSubmit sid' c)
+        haveBanner <- if not acceptBanner then return False else (>0) <$>
+          (ExceptT $ run $ query (sid', sid) $ statement
+           "UPDATE submit_banner SET sid=$2 WHERE sid=$1"
+           (contrazip2 (EN.value EN.int4) (EN.value EN.int4))
+           DE.rowsAffected True)
         ExceptT $ run $ query sid' $ statement
           "DELETE FROM user_edit WHERE sid=$1"
-          (EN.value EN.int4) DE.unit True) userSid
+          (EN.value EN.int4) DE.unit True
+        return haveBanner) userSid
+  if b || haveUserSidBanner
+    then ExceptT (deleteBanner c) >> ExceptT (saveFromSubmit sid c)
+    else return ()
   ExceptT $ run $ query (uid u, c, sid) $ statement
     "SELECT edit_entry($1, $2, $3)"
     (let e = EN.value EN.int4 in contrazip3 e e e)

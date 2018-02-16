@@ -122,7 +122,7 @@ saveBanner
   -> AppHandler (Either Error ())
 saveBanner c (format, content) = do
   let fileName = show c <> "." <> formatExtension format
-  liftIO $ B.writeFile ("banners/" <> fileName) content
+  liftIO $ B.writeFile ("/srv/piperka.net/files/banners/" <> fileName) content
   run $ query (c, fileName) $ statement sql
     (contrazip2 (EN.value EN.int4) (T.pack >$< EN.value EN.text)) DE.unit True
   where
