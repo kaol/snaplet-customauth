@@ -121,12 +121,13 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION get_and_update_stats(uid integer, is_login boolean, OUT new_comics integer, OUT total_new integer, OUT new_in integer) AS $$
 BEGIN
   IF is_login THEN
-    UPDATE users SET seen_comics_before = COALESCE(last_active, NOW()) WHERE users.uid=get_and_update_stats.uid;
+    UPDATE users SET seen_comics_before = seen_comics_last WHERE users.uid=get_and_update_stats.uid;
   ELSE
-    IF (select last_active < NOW() - time '0:10' FROM users WHERE users.uid=get_and_update_stats.uid) THEN
-      UPDATE users SET seen_comics_before = COALESCE(last_active,NOW()) WHERE o_uid=uid;
+    IF (select seen_comics_last < NOW() - time '0:10' FROM users WHERE users.uid=get_and_update_stats.uid) THEN
+      UPDATE users SET seen_comics_before = COALESCE(last_active,NOW()) WHERE users.uid=get_and_update_stats.uid;
     END IF;
   END IF;
+  UPDATE users SET seen_comics_last = NOW() WHERE users.uid=get_and_update_stats.uid;
   SELECT * FROM user_unread_stats(uid) INTO total_new, new_in;
   SELECT COUNT(*) INTO new_comics FROM comics, users WHERE users.uid=get_and_update_stats.uid AND comics.added_on > users.seen_comics_before;
 END;
