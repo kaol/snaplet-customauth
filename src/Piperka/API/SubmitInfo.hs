@@ -23,6 +23,7 @@ import qualified Data.ByteString as B
 import Data.Time.Clock
 import Data.Time.LocalTime
 import Data.Text (Text)
+import qualified Data.Textual
 import GHC.Generics
 import Hasql.Decoders as DE
 import Hasql.Encoders as EN
@@ -37,6 +38,7 @@ import System.Process
 
 import Application
 import Piperka.API.Common
+import Piperka.ComicInfo.Epedia
 import Piperka.Util (getParamInt)
 
 data UserSubmit = UserSubmit
@@ -50,7 +52,7 @@ data UserSubmit = UserSubmit
   , want_email :: Bool
   , email :: Maybe Text
   , banner_url :: Maybe Text
-  , from_ip :: Maybe (NetAddr IP)
+  , from_ip :: Text
   , newbanner :: Bool
   } deriving (Generic)
 
@@ -71,7 +73,7 @@ decodeSubmit =
   <*> DE.value DE.bool
   <*> DE.nullableValue DE.text
   <*> DE.nullableValue DE.text
-  <*> DE.nullableValue DE.inet
+  <*> (liftA (Data.Textual.toText . netHost) $ DE.value DE.inet)
   <*> DE.value DE.bool
 
 readSubmit
@@ -103,13 +105,6 @@ instance ToJSON UserEdit where
   toEncoding = genericToEncoding defaultOptions {
     fieldLabelModifier = filter (/= '\'') }
 
-data Epedia = Epedia
-  { epid :: Int
-  , entry :: Maybe Text
-  } deriving (Generic)
-
-instance ToJSON Epedia
-
 decodeEdit
   :: DE.Row ([Int] -> [Epedia] -> [Int] -> UserEdit)
 decodeEdit =
@@ -131,10 +126,7 @@ readUserEdit = do
         info <- run' sql1 (DE.maybeRow decodeEdit)
         let fillInfo info' = do
               newtags <- run' sql2 (DE.rowsList (fromIntegral <$> DE.value DE.int4))
-              epedias' <- run' sql3 $ DE.rowsList $
-                         Epedia
-                         <$> (fromIntegral <$> DE.value DE.int4)
-                         <*> (DE.nullableValue DE.text)
+              epedias' <- run' sql3 $ DE.rowsList decodeEpedia
               oldtags <- run' sql4 (DE.rowsList (fromIntegral <$> DE.value DE.int4))
               return $ info' newtags epedias' oldtags
         maybe (return Nothing) ((Just <$>) . fillInfo) info)

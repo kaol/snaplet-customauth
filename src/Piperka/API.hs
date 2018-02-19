@@ -14,10 +14,12 @@ module Piperka.API (
   , readUserEdit
   , dropUserEdit
   , viewSubmitBanner
+  , readGenentry
   ) where
 
 import Piperka.API.Archive
 import Piperka.API.ComicInfo
+import Piperka.API.Genentry
 import Piperka.API.Login
 import Piperka.API.Profile
 import Piperka.API.Provider

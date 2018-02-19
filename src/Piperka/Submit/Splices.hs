@@ -13,6 +13,7 @@ import Data.Monoid
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8')
+import qualified Data.Textual
 import Data.Time.Clock
 import qualified Hasql.Decoders as DE
 import qualified Hasql.Encoders as EN
@@ -31,7 +32,7 @@ import Application
 import Piperka.Error.Splices
 import Piperka.Util (formatTime', getCid)
 
-data SubmitType = Edit | Submit | Moderate
+data SubmitType = Edit | Submit | Moderate | Genentry
   deriving (Show, Read, Eq)
 
 renderSubmit
@@ -41,8 +42,8 @@ renderSubmit ini = do
   mode :: SubmitType <- read . T.unpack . fromJust . X.getAttribute "mode" <$>
                         getParamNode
   let
-    tpart = extFormPart ini
-    epart = tagFormPart ini
+    epart = extFormPart ini
+    tpart = tagFormPart ini
     cidSplices = do
       "hasCid" ## deferMany $ \n ->
         withSplices (eitherDeferMap (lift . getTitleHomepage)
@@ -100,7 +101,7 @@ data EditEntry = EditEntry
   , cid' :: Int32
   , title :: Text
   , addedOn :: UTCTime
-  , fromIP :: Maybe (NetAddr IP)
+  , fromIP :: NetAddr IP
   , name :: Text
   , subscribed :: Bool
   , diffTags :: Bool
@@ -115,12 +116,12 @@ renderListOfEdits =
     listSplices = mapV (pureSplice . textSplice) $ do
       "title" ## title
       "name" ## name
+      "fromIP" ## Data.Textual.toText . netHost . fromIP
       mapV (fmap T.pack) $ do
         "sidId" ## ("sid-" <>) . show . sid
         "sid" ## show . sid
         "cidId" ## ("cid-" <>) . show . cid'
         "addedOn" ## formatTime' . addedOn
-        "fromIP" ## show . fromIP
     listAttrSplices = "class" ## \n -> const $ do
       p <- n
       return $ if subscribed p || diffTags p then [("class", "youCare")] else []
@@ -141,7 +142,7 @@ renderListOfEdits =
       <*> DE.value DE.int4
       <*> DE.value DE.text
       <*> DE.value DE.timestamptz
-      <*> DE.nullableValue DE.inet
+      <*> DE.value DE.inet
       <*> DE.value DE.text
       <*> DE.value DE.bool
       <*> DE.value DE.bool

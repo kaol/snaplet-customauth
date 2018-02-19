@@ -11,6 +11,7 @@ import Control.Error.Util (hush)
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Maybe
+import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as C
 import Data.Map.Syntax
 import Data.Monoid
@@ -40,7 +41,7 @@ decoder = DE.value DE.bool
 
 renderPasswordRecovery :: RuntimeAppHandler a
 renderPasswordRecovery _ = do
-  [bodyStart, bodyEnd] <- liftIO $ C.split '$' . C.pack <$> readFile "x/recovery_template"
+  [bodyStart, bodyEnd] <- liftIO $ C.split '$' <$> B.readFile "x/recovery_template"
   let mkBody usr email = decodeLatin1 $
         bodyStart <> (urlEncode True $ encodeUtf8 usr) <>
         "&hash=" <> (urlEncode False $ encodeUtf8 email) <> bodyEnd

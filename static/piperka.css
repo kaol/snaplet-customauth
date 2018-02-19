@@ -335,3 +335,7 @@ float: right;
     content: "n";
     font-size: small;
 }
+
+#genentry-form input[type="text"] {
+    width: 500px;
+}

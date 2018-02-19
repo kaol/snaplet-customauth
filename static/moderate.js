@@ -74,6 +74,37 @@ csrf_ham = csrf_ham ? csrf_ham[1] : null;
 	});
 	return this;
     };
+    $.fn.setChildFields = function(rpy) {
+	var mainField = $(this);
+	$.each(rpy, function(k,v){
+	    var field = mainField.find('#'+k)[0];
+	    if (typeof field != 'undefined') {
+		switch (field.tagName.toLowerCase()) {
+		case 'span':
+		case 'textarea':
+		    field.innerText = v;
+		    break;
+		case 'a':
+		    field.innerText = v;
+		    field.setAttribute('href', v);
+		    break;
+		case 'input':
+		    var type = field.getAttribute('type');
+		    if (type == 'checkbox') {
+			if (v) {
+			    field.setAttribute('checked', 1);
+			} else {
+			    field.removeAttribute('checked');
+			}
+		    } else if (type == 'text') {
+			field.setAttribute('value', v);
+		    }
+		    break;
+		}
+	    }
+	});
+	return this;
+    };
     $.fn.pSubmissions = function() {
 	$(this).on('click', 'tr', function() {
 	    var sid = this.getAttribute('id').substring(4);
@@ -81,35 +112,37 @@ csrf_ham = csrf_ham ? csrf_ham[1] : null;
 	    $.ajax({url:'/s/sinfo2/'+sid,
 		    dataType: 'json',
 		    success: function(rpy){
-			$.each(rpy, function(k,v){
-			    var field = $('#submission-entry #'+k)[0];
-			    if (typeof field != 'undefined') {
-				switch (field.tagName.toLowerCase()) {
-				case 'span':
-				case 'textarea':
-				    field.innerText = v;
-				    break;
-				case 'a':
-				    field.innerText = v;
-				    field.setAttribute('href', v);
-				    break;
-				case 'input':
-				    var type = field.getAttribute('type');
-				    if (type == 'checkbox') {
-					if (v) {
-					    field.setAttribute('checked', 1);
-					} else {
-					    field.removeAttribute('checked');
-					}
-				    } else if (type == 'text') {
-					field.setAttribute('value', v);
-				    }
-				    break;
-				}
-			    }
-			});
+			$('#genentry-link')[0].setAttribute('href', 'genentry.html?sid='+sid);
+			$('#submission-entry').setChildFields(rpy);
 		    }});
 	});
 	return this;
     };
 })( jQuery );
+
+$(document).ready(function(){
+    var genentry = $('#genentry-form');
+    if (genentry.length > 0) {
+	genentry.show();
+	$('#tagdiff .script').show();
+	var sid = /sid=(\d+)/.exec(document.location.href)[1];
+	$('#submission-banner').html('<img src="/s/viewsubmitbanner/'+sid+'">');
+	$.ajax({url:'/s/genentry/'+sid,
+		dataType: 'json',
+		success: function(rpy) {
+		    if (rpy.newbanner) {
+			$('.hasbanner.script').show();
+			$('.hasbanner input[type=checkbox]')[0].checked = true;
+		    } else {
+			$('.hasbanner').hide();
+		    }
+		    rpy.origtags = [];
+		    setTagsEpedias(rpy);
+		    if (!/^http/.test(rpy.homepage)) {
+			rpy.homepage = 'http://'+rpy.homepage;
+		    }
+		    $('#genentry-form').setChildFields(rpy);
+		    $('#homepage_link').attr('href', rpy.homepage);
+		}});
+    }
+});

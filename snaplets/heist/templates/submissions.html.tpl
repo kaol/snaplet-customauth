@@ -3,7 +3,7 @@
     <h:ifMod>
       <h2>Submission</h2>
       <div id="submission-entry">
-	<p>sid: <span id="sid"/></p>
+	<p>sid: <span id="sid"/> <a id="genentry-link" target="_blank">genentry</a></p>
 	<p>Title: <span id="title"/></p>
 	<p>Homepage: <a id="homepage" href=""/></p>
 	<p>First page: <a id="first_page" href=""/></p>

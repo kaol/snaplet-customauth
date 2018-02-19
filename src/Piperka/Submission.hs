@@ -7,6 +7,7 @@ import Control.Monad.Trans
 import Data.Map.Syntax
 import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Textual
 import Data.Time.Clock
 import Data.Time.LocalTime
 import Data.Vector (Vector)
@@ -27,7 +28,7 @@ data Submission = Submission
   { sid :: Int
   , title :: Text
   , submittedOn :: UTCTime
-  , fromIP :: Maybe (NetAddr IP)
+  , fromIP :: NetAddr IP
   , name :: Maybe Text
   }
   deriving (Show)
@@ -39,7 +40,7 @@ decodeSubmission =
   <$> (fromIntegral <$> DE.value DE.int4)
   <*> liftA HTML.text (DE.value DE.text)
   <*> liftA (localTimeToUTC utc) (DE.value DE.timestamp)
-  <*> DE.nullableValue DE.inet
+  <*> DE.value DE.inet
   <*> DE.nullableValue DE.text
 
 readSubmissions
@@ -60,5 +61,5 @@ renderSubmissions =
       "sid" ## T.pack . show . sid
       "title" ## title
       "submittedOn" ## T.pack . show . submittedOn
-      "fromIP" ## maybe "" (T.pack . show) . fromIP
+      "fromIP" ## Data.Textual.toText . netHost . fromIP
       "name" ## maybe "" id . name

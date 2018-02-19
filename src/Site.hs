@@ -66,6 +66,7 @@ routes = do
         , ("/s/sinfo2/:sid", readSubmit)
         , ("/s/dropsubmit/:sid", dropUserEdit)
         , ("/s/viewsubmitbanner/:sid", viewSubmitBanner)
+        , ("/s/genentry/:sid", readGenentry)
         ]
   let specialTemplates = [ "account.html"
                          , "newuser.html"

@@ -70,7 +70,7 @@ function setTagsEpedias(rpy) {
     $.each(rpy.origtags, function(idx, tagid){
 	origtags[tagid] = true;
     });
-    $('.submitcomic').on('change', 'input[type=checkbox]', function() {
+    $('#tags-container').on('change', 'input[type=checkbox]', function() {
 	var tagid = this.getAttribute('value');
 	if ((origtags[tagid] && this.checked) || (!origtags[tagid] && !this.checked)) {
 	    $('span#difftag-'+tagid).remove();
@@ -95,7 +95,9 @@ function setTagsEpedias(rpy) {
 	    $('#cat-sel-'+tagid).trigger('change');
     });
     $.each(rpy.epedias, function(idx, dat) {
-	$('input[name=epedia-entry-'+dat[0]+']').val(dat[1]);
+	var epid = dat.epid || dat[0];
+	var entry = dat.entry || dat[1];
+	$('input[name=epedia-entry-'+epid+']').val(entry);
     });
 }
 

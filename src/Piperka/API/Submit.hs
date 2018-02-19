@@ -20,7 +20,6 @@ import Data.Functor.Contravariant
 import Data.Int
 import Data.Maybe
 import qualified Data.Map.Strict as M
-import Data.Monoid
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Encoding
@@ -40,6 +39,7 @@ import Application
 import Piperka.API.Common
 import Piperka.API.Submit.Banner
 import Piperka.API.Submit.Types
+import Piperka.ComicInfo.Epedia (eEntries)
 import Piperka.Util (getCid, getParamInt)
 
 rqRemote
@@ -243,24 +243,17 @@ insertTagsEpedias
   -> Params
   -> ExceptT Error AppHandler ()
 insertTagsEpedias sid params = do
-  let encodeArray = EN.value . EN.array . EN.arrayDimension foldl . EN.arrayValue
+  let encodeList = EN.value . EN.array . EN.arrayDimension foldl . EN.arrayValue
   ExceptT $ run $ query (sid, tags) $ statement sql1
-    (contrazip2 (EN.value EN.int4) (encodeArray EN.int4))
+    (contrazip2 (EN.value EN.int4) (encodeList EN.int4))
     DE.unit True
-  ExceptT $ run $ query (sid, eEntries) $ statement sql2
+  ExceptT $ run $ query (sid, eEntries params) $ statement sql2
     (contrazip2 (EN.value EN.int4)
-     (unzip >$< contrazip2 (encodeArray EN.int4) (encodeArray EN.text)))
+     (unzip >$< contrazip2 (encodeList EN.int2) (encodeList EN.text)))
     DE.unit True
   where
     tags = maybe [] (map (fromIntegral . fst) . catMaybes . map B.readInt) $
       M.lookup "category" params
-    epedias = maybe [] id $ M.lookup "epedia" params
-    buildEntry n entry = do
-      i <- fromIntegral . fst <$> B.readInt n
-      (i,) <$> (hush . decodeUtf8' =<< entry)
-    eEntries = catMaybes $
-      map (\n -> buildEntry n . listToMaybe =<<
-            M.lookup ("epedia-entry-"<>n) params) epedias
     sql1 = "INSERT INTO submit_tag (sid, tagid) SELECT $1, tagid FROM \
            \unnest($2) AS tagid"
     sql2 = "INSERT INTO external_entry_submit (sid, epid, entry) \

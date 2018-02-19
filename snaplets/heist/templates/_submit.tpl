@@ -1,5 +1,7 @@
 <h3>Categories</h3>
-<h:tags/>
+<span id="tags-container">
+  <h:tags/>
+</span>
 <h3>Cross-references</h3>
 <p>Piperka can have links to other sites containing information about this comic.</p>
 <h:epedias/>
@@ -33,7 +35,7 @@
 </h:ifMode>
 <h3>Description</h3>
 <p>
-  <textarea cols="50" rows="5" name="description"><h:ifMode mode="[Edit]"><h:description/></h:ifMode></textarea>
+  <textarea cols="50" rows="5" name="description" id="description"><h:ifMode mode="[Edit]"><h:description/></h:ifMode></textarea>
 </p>
 <p>
   <span class="noscript">
@@ -47,13 +49,24 @@
 <h:ifMode mode="[Edit]">
   <div id="msgdiv"/>
 </h:ifMode>
-<h:ifMode mode="[Edit]">
+<h:ifMode mode="[Edit,Genentry]">
   <span id="tagdiff" class="hideafterdone">
     <div id="removedtags" class="script">Tags to be removed: <span class="diff"/></div>
     <div id="addedtags" class="script">Tags to be added: <span class="diff"/></div>
   </span>
 </h:ifMode>
-<h:ifMode mode="[Moderate]">
+<h:ifMode mode="[Genentry]">
+  <p>
+    <label for="want_email">Wants email</label>
+    <input type="checkbox" name="want_email" id="want_email" value="1"/>
+    Email: <input type="text" name="email" id="email"/>
+  </p>
+  <p>
+    <input type="text" name="email_subject" id="subject"/>
+    <textarea cols="100" rows="20" name="email_message" id="message"></textarea>
+  </p>
+</h:ifMode>
+<h:ifMode mode="[Moderate,Genentry]">
   <span class="script hasbanner">
     <input type="checkbox" id="acceptbanner" name="acceptbanner" value="1"/>
     <label for="acceptbanner">Approve banner</label>
@@ -65,6 +78,9 @@
   </h:ifMode>
   <h:ifMode mode="[Submit]">
     <button type="submit" disabled="1">Submit</button>
+  </h:ifMode>
+  <h:ifMode mode="[Genentry]">
+    <button type="submit">Submit</button>
   </h:ifMode>
 </span>
 <h:ifMode mode="[Moderate]">

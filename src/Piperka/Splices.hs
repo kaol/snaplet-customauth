@@ -39,6 +39,7 @@ import Piperka.API.Submit.Splices
 import Piperka.Auth (currentUserPlain)
 import Piperka.Auth.Splices
 import Piperka.OAuth2.Splices
+import Piperka.Maint.Splices
 import Piperka.Splices.Account
 import Piperka.Splices.Flavor
 import Piperka.Splices.Providers
@@ -227,6 +228,7 @@ loggedInSplices = do
   "listOfEdits" ## renderListOfEdits
   "accountForm" ## renderAccountForm
   "recent" ## renderRecent
+  "genentry" ## renderGenentry
 
 profileLink
   :: RuntimeAppHandler MyData
