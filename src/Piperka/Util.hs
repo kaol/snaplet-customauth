@@ -16,22 +16,27 @@ module Piperka.Util
   , getParamInt
   , getCid
   , firstSuccess
+  , rqRemote
   ) where
 
+import Control.Applicative ((<|>))
 import Control.Error.Util (hush, hoistMaybe)
 import Control.Monad
 import Control.Monad.Trans
 import Control.Monad.Trans.Maybe
-import Network.HTTP.Types.URI (Query, encodePath, urlEncode)
+import Network.HTTP.Types.URI (Query, encodePath)
 import Blaze.ByteString.Builder (Builder, toByteString)
 import Blaze.ByteString.Builder.ByteString (fromByteString)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B
 import Data.Char
+import Data.Maybe (fromJust)
 import Data.Text.Encoding (decodeUtf8, decodeUtf8', encodeUtf8)
 import Data.Text
+import Data.Textual (fromString)
 import Data.Time.Format
-import Snap (getParam, MonadSnap, Handler)
+import Network.IP.Addr
+import Snap
 import System.Random (randomRIO)
 
 encodePathToText
@@ -43,7 +48,7 @@ encodePathToText = (.) (decodeUtf8 . toByteString) . encodePath
 urlEncodeTextToBuilder
   :: Text
   -> Builder
-urlEncodeTextToBuilder = fromByteString . urlEncode False . encodeUtf8
+urlEncodeTextToBuilder = fromByteString . urlEncode . encodeUtf8
 
 plural
   :: (Num a, Eq a)
@@ -132,3 +137,18 @@ firstSuccess [] = MaybeT $ return Nothing
 firstSuccess (x:xs) = (lift $ runMaybeT x) >>= \r -> case r of
   Nothing -> firstSuccess xs
   Just r' -> return r'
+
+rqRemote
+  :: Request
+  -> NetAddr IP
+rqRemote rq = let
+  client = rqClientAddr rq
+  addr = B.unpack $ client
+  isLocal = B.take 4 client == "127."
+  forwarded = B.unpack <$> getHeader "X-Proxy-Forward" rq
+  parse a =
+    (((flip netAddr 128 . IPv6) <$> (fromString a :: Maybe IP6)) <|>
+     ((flip netAddr 32 . IPv4) <$> (fromString a :: Maybe IP4))) :: Maybe (NetAddr IP)
+  in fromJust $
+     (if isLocal then maybe id (\x -> (parse x <|>)) forwarded else id) $
+     parse addr

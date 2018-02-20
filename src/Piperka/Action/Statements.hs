@@ -14,8 +14,16 @@ import qualified Data.Vector as V
 import Hasql.Query
 import qualified Hasql.Decoders as DE
 import qualified Hasql.Encoders as EN
+import Network.IP.Addr
 
 import Piperka.Util (monadicTuple3)
+
+comicTitleFetch
+  :: Query Int32 (Maybe Text)
+comicTitleFetch =
+  statement sql (EN.value EN.int4) (DE.maybeRow $ DE.value DE.text) True
+  where
+    sql = "SELECT title FROM comics WHERE cid=$1"
 
 decodeBookmark
   :: DE.Row (Int, Text, Maybe (Int, Int, Bool))
@@ -56,14 +64,14 @@ bookmarkFetch =
 
 -- url, want_here, host, uid
 bookmarkAndLogFetch
-  :: Query (Text, Bool, ByteString, Maybe Int32) [(Int, Text, Maybe (Int, Int, Bool))]
+  :: Query (Text, Bool, NetAddr IP, Maybe Int32) [(Int, Text, Maybe (Int, Int, Bool))]
 bookmarkAndLogFetch =
   statement sql (contrazip4 (EN.value EN.text) (EN.value EN.bool)
-                 (EN.value EN.bytea) (EN.nullableValue EN.int4))
+                 (EN.value EN.inet) (EN.nullableValue EN.int4))
   (DE.rowsList decodeBookmark) True
   where
     sql = "SELECT b.v_cid, title, b.v_ord, b.v_subord, b.v_at_max \
-          \FROM bookmark_and_log($1, $2, encode($3, 'escape')::inet, $4) AS b \
+          \FROM bookmark_and_log($1, $2, $3, $4) AS b \
           \JOIN comics ON (b.v_cid = cid)"
 
 bookmarkSet

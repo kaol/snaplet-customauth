@@ -5,7 +5,6 @@
 module Piperka.API.Submit (receiveSubmit) where
 
 import Contravariant.Extras.Contrazip
-import Control.Applicative ((<|>))
 import Control.Error.Util
 import Control.Lens (set)
 import Control.Monad
@@ -23,7 +22,6 @@ import qualified Data.Map.Strict as M
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Encoding
-import Data.Textual (fromString)
 import qualified Hasql.Decoders as DE
 import qualified Hasql.Encoders as EN
 import Hasql.Query
@@ -40,22 +38,7 @@ import Piperka.API.Common
 import Piperka.API.Submit.Banner
 import Piperka.API.Submit.Types
 import Piperka.ComicInfo.Epedia (eEntries)
-import Piperka.Util (getCid, getParamInt)
-
-rqRemote
-  :: Request
-  -> NetAddr IP
-rqRemote rq = let
-  client = rqClientAddr rq
-  addr = B.unpack $ client
-  isLocal = B.take 4 client == "127."
-  forwarded = B.unpack <$> getHeader "X-Proxy-Forward" rq
-  parse a =
-    (((flip netAddr 128 . IPv6) <$> (fromString a :: Maybe IP6)) <|>
-     ((flip netAddr 32 . IPv4) <$> (fromString a :: Maybe IP4))) :: Maybe (NetAddr IP)
-  in fromJust $
-     (if isLocal then maybe id (\x -> (parse x <|>)) forwarded else id) $
-     parse addr
+import Piperka.Util (getCid, getParamInt, rqRemote)
 
 receiveSubmit
   :: AppHandler ()

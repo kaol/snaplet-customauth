@@ -29,7 +29,7 @@ import Backend ()
 import qualified Application as A
 import Piperka.Action.Types
 import Piperka.Action.Query
-import Piperka.Util (maybeParseInt)
+import Piperka.Util (maybeParseInt, rqRemote)
 
 processAction
   :: Maybe UserWithStats
@@ -89,7 +89,7 @@ extractAction rq params uid = do
        _ -> do
          let url = lookup' "bookmark"
          let wantHere = isJust $ lookup' "wantbookmarkhere"
-         let addr = rqClientAddr rq
+         let addr = rqRemote rq
          maybe (return ())
            (\u -> (lift $ getBookmark (decodeUtf8 u) wantHere addr uid)
                   >>= throwE) url
