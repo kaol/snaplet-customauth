@@ -118,15 +118,8 @@ function setPage(ord, button, moveforward) {
 }
 
 function initcid(newcid) {
+    initCidCalled = true;
     $('#nocomicselected').hide();
-    if ($('#logo button').length == 0) {
-	$('#welcome').appendTo($('body')).dialog({autoOpen: true, minwidth: 300, width: 500});
-	$('<button type="button" id="welcomebutton">?</button>').on('click', function() {
-	    // Workaround, see http://forum.jquery.com/topic/dialog-position-issue
-	    $('#archivedialog,#mycomicsdialog').dialog('close');
-	    $('#welcome').dialog('open');
-	}).appendTo('#logo');
-    }
     $('#lockheight').attr('value', 0);
     $('#reader').empty();
     $('.marker').hide().appendTo($('body'));
@@ -167,7 +160,10 @@ function initcid(newcid) {
 }
 
 $(document).ready(function(){
-    $('#moreoptions, #navigation').tooltip();
+    var welcomeOpened = false;
+    $('#moreoptions, #navigation').tooltip({
+	position: {my: 'left+150 top', at: 'right center'}
+    });
     maximizeReader();
     var navigationHeight = $('#navigation').innerHeight();
     $('#moreoptions').mouseleave(function(){
@@ -219,7 +215,12 @@ $(document).ready(function(){
 	    });
 	    dialog.dialog({autoOpen: false, minwidth: 300, height: 400});
 	    $('#mycomics').on('click', function(){
-		$('#archivedialog,#welcome').dialog('close');
+		//var archivedialog = $('#archivedialog');
+		//$('#archivedialog,#welcome').dialog('close');
+		$('#archivedialog').dialog('close');
+		if (welcomeOpened) {
+		    $('#welcome').dialog('close');
+		}
 		dialog.dialog('open');
 	    });
 	}
@@ -238,6 +239,17 @@ $(document).ready(function(){
     });
     var cidFromHref = /cid=([0-9]+)/.exec(window.location.href);
     if (cidFromHref != undefined) {
+	if (!csrf_ham) {
+	    welcomeOpened = true;
+	    if ($('#logo button').length == 0) {
+		$('#welcome').appendTo($('body')).dialog({autoOpen: true, minwidth: 300, width: 500});
+		$('<button type="button" id="welcomebutton">?</button>').on('click', function() {
+		    // Workaround, see http://forum.jquery.com/topic/dialog-position-issue
+		    $('#archivedialog,#mycomicsdialog').dialog('close');
+		    $('#welcome').dialog('open');
+		}).appendTo('#logo');
+	    }
+	}
 	initcid(cidFromHref[1]);
 	$('#autoupdate').removeAttr('checked');
     }
