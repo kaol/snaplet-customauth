@@ -118,7 +118,6 @@ function setPage(ord, button, moveforward) {
 }
 
 function initcid(newcid) {
-    initCidCalled = true;
     $('#nocomicselected').hide();
     $('#lockheight').attr('value', 0);
     $('#reader').empty();
@@ -215,8 +214,6 @@ $(document).ready(function(){
 	    });
 	    dialog.dialog({autoOpen: false, minwidth: 300, height: 400});
 	    $('#mycomics').on('click', function(){
-		//var archivedialog = $('#archivedialog');
-		//$('#archivedialog,#welcome').dialog('close');
 		$('#archivedialog').dialog('close');
 		if (welcomeOpened) {
 		    $('#welcome').dialog('close');
