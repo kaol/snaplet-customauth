@@ -158,7 +158,7 @@
 		  set bookmark
 		  for <a href="/info.html?cid=${h:cid}"><h:title/></a>
 		  on <h:newest>newest page</h:newest>
-		  <h:notNewest>page<h:ord/></h:notNewest>.
+		  <h:notNewest>page <h:ord/></h:notNewest>
 		</bookmark>
 		<subscribe>
 		  subscribe

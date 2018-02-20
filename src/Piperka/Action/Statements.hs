@@ -6,7 +6,6 @@ module Piperka.Action.Statements where
 import Contravariant.Extras.Contrazip
 import Control.Applicative
 import Control.Arrow
-import Data.ByteString (ByteString)
 import Data.Int
 import Data.Text (Text)
 import Data.Vector (Vector)

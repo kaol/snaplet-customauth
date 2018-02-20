@@ -84,8 +84,10 @@ extractAction rq params uid = do
                ord <- maybeParseInt =<< lookup' "ord"
                subord <- maybeParseInt =<< lookup' "subord"
                let latest = lookup' "latest" == Just "True"
-               return $ Bookmark [(cid, "TODO", Just (ord, subord, latest))]
-         extract act
+               return $ (cid, \n -> Bookmark [(cid, n, Just (ord, subord, latest))])
+             fillTitle (cid, f) = maybe (return ()) (throwE . Right . f) =<<
+               (withExceptT Left $ ExceptT $ getComicTitle (fromIntegral cid))
+         maybe (return ()) fillTitle act
        _ -> do
          let url = lookup' "bookmark"
          let wantHere = isJust $ lookup' "wantbookmarkhere"
@@ -125,10 +127,10 @@ perform (Unsubscribe cid) True usr uid =
 perform (Revert cids) True usr uid =
   performSql usr $ revertUpdates uid cids
 
-perform (Bookmark _) _ usr _ = return $ Just usr
 perform (Subscribe cid _) False _ _ = csrfFailWithComic cid
 perform (Unsubscribe cid) False _ _ = csrfFailWithComic cid
 perform _ False _ _ = hoistEither $ Left CsrfFail
+perform (Bookmark _) _ usr _ = return $ Just usr
 
 -- Get the comic title.  If it fails, give another error
 csrfFailWithComic
