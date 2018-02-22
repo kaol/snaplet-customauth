@@ -71,7 +71,10 @@
     </p>
   </msg>
   <msg id="11">
-    Your submission has been accepted and queued.
+    <h2>Success</h2>
+    <p>
+      Your submission has been accepted and queued.
+    </p>
   </msg>
   <msg id="12">
     Your submission has been sent to our moderators for consideration.
