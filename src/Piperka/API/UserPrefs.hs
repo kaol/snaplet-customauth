@@ -7,9 +7,11 @@ module Piperka.API.UserPrefs (userPrefs) where
 
 import Contravariant.Extras.Contrazip
 import Control.Applicative
-import Control.Error.Util (bool)
+import Control.Error.Util (bool, hoistMaybe)
+import Control.Monad (void)
 import Control.Monad.Trans
 import Control.Monad.Trans.Except
+import Control.Monad.Trans.Maybe
 import Data.Aeson
 import qualified Data.ByteString as B
 import Data.ByteString.Char8 (split)
@@ -22,7 +24,7 @@ import GHC.Generics
 import Hasql.Query
 import qualified Hasql.Decoders as DE
 import qualified Hasql.Encoders as EN
-import Hasql.Session (query)
+import Hasql.Session (query, Error)
 import Snap
 import Snap.Snaplet.Hasql
 
@@ -86,20 +88,25 @@ decodeBookmarkSet b = do
 userPrefs :: AppHandler ()
 userPrefs = do
   bookmark <- (decodeBookmarkSet =<<) <$> getParam "bookmark[]"
-  maybe readPrefs (\b -> runMaybeUserQueries $ setBookmark b) bookmark
+  maybe readPrefs (\b -> runUserQueries $ setBookmark b) bookmark
   where
+    readPrefs :: AppHandler ()
     readPrefs = do
-      ses <- maybe (simpleFail 403 "Session cookie required") return =<<
-             (fromASCIIBytes . cookieValue =<<) <$>
+      ses <- (fromASCIIBytes . cookieValue =<<) <$>
              getCookie sessionCookieName
-      runQueries $ do
-        (u, f) <-
-          maybe (lift $ simpleFail 400 "User authentication failed") return =<<
-          (ExceptT $ run $ query ses $ statement sql1
-           (EN.value EN.uuid) (DE.maybeRow decodeUserPrefs) True)
-        lift . writeLBS . encode . f =<<
-          (ExceptT $ run $ query u $ statement sql2
-            (EN.value EN.int4) (DE.rowsVector decodeSubscription) True)
+      tok <- (fromASCIIBytes =<<) <$> getParam "token"
+      void $ runMaybeT $
+        (hoistMaybe ses >>= lift . getFullPrefs) <|>
+        (hoistMaybe tok >>= lift . getOnlySubscriptions)
+    getFullPrefs :: UUID -> AppHandler ()
+    getFullPrefs ses = runQueries $ do
+      (u, f) <-
+        maybe (lift $ simpleFail 400 "User authentication failed") return =<<
+        (ExceptT $ run $ query ses $ statement sql1
+          (EN.value EN.uuid) (DE.maybeRow decodeUserPrefs) True)
+      lift . writeLBS . encode . f =<<
+        (ExceptT $ run $ query u $ statement sql2
+         (EN.value EN.int4) (DE.rowsVector decodeSubscription) True)
     sql1 = "SELECT uid, name, new_windows, display_rows, display_columns \
            \FROM recover_session($1) JOIN users USING (uid)"
     sql2 = "SELECT cid, ord+\
@@ -110,15 +117,23 @@ userPrefs = do
            \FROM comics JOIN subscriptions USING (cid) \
            \JOIN comic_remain_frag($1) USING (cid) WHERE uid=$1 \
            \ORDER BY Num DESC, ordering_form(title)"
+    -- For Piperka App
+    getOnlySubscriptions :: UUID -> AppHandler ()
+    getOnlySubscriptions tok = runQueries $ do
+      u <-
+        maybe (lift $ simpleFail 400 "Invalid or missing token") return =<<
+        tokenAuth tok
+      lift . writeLBS . encode . (\subs -> object ["subscriptions" .= subs]) =<<
+        (ExceptT $ run $ query u $ statement sql2
+         (EN.value EN.int4) (DE.rowsVector decodeSubscription) True)
 
 setBookmark
   :: (Int, BookmarkSet)
-  -> Maybe MyData
+  -> MyData
   -> UserQueryHandler ()
-setBookmark (c, bookmark) usr = do
+setBookmark (c, bookmark) p = do
   getUnread <- lift $ maybe False (== "1") <$> getParam "getunread"
-  u <- maybe (lift $ simpleFail 400 "User authentication failed") return =<<
-    maybe viaToken (\u -> lift validateCsrf >> (return $ Just $ uid u)) usr
+  let u = uid p
   let cid = fromIntegral c
   ord <- case bookmark of
     Page o' ->
@@ -168,11 +183,12 @@ setBookmark (c, bookmark) usr = do
            \RETURNING ord+1"
     sql3 = "DELETE FROM subscriptions WHERE uid=$1 AND cid=$2"
     sql4 = "SELECT total_new, new_in FROM user_unread_stats($1)"
-    -- Bookmarks may be set without session cookie and with just a
-    -- CSRF token in request parameters
-    viaToken = (lift $ (fromASCIIBytes =<<) <$> getParam "token") >>=
-      (ExceptT . maybe (return $ Right Nothing)
-       (\token -> run $ query token $ statement sql5 (EN.value EN.uuid)
-                  (DE.maybeRow $ DE.value DE.int4) True))
-    sql5 = "SELECT uid FROM p_session \
-           \WHERE token_for IS NOT NULL AND ses=$1"
+
+tokenAuth
+  :: UUID
+  -> ExceptT Error AppHandler (Maybe UserID)
+tokenAuth token =
+  ExceptT $ run $ query token $ statement sql (EN.value EN.uuid)
+  (DE.maybeRow $ DE.value DE.int4) True
+  where
+    sql = "SELECT uid FROM p_session WHERE token_for IS NOT NULL AND ses=$1"
