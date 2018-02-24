@@ -262,7 +262,7 @@ $(document).ready(function(){
 	    var sorttype = $('#quicksearch input[name=sorttype]').attr('value');
 	    if (cid) {
 		$.getJSON('/s/qsearch', {cid: cid, sorttype: sorttype}, function(rpy) {
-		    if (rpy && rpy.offset) {
+		    if (rpy && rpy.offset != undefined) {
 			if (repage != undefined) {
 			    repage(rpy.offset);
 			} else {

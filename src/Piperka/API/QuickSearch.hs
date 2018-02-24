@@ -35,7 +35,7 @@ fetch = fromJust . flip lookup table
     table = map (\o -> (o, statement (sql o)
                            (EN.value EN.int4) (DE.maybeRow $ DE.value DE.int4) True))
             allOrderings
-    sql o = "SELECT rownum FROM (SELECT cid, row_number() OVER (ORDER BY " <>
+    sql o = "SELECT rownum-1 FROM (SELECT cid, row_number() OVER (ORDER BY " <>
             (orderingSqlPart o) <> ") AS rownum FROM comics) AS r WHERE cid=$1"
 
 data Offset = Offset { offset :: Maybe Int32 } deriving (Generic)
