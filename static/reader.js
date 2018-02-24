@@ -25,7 +25,7 @@ function loadPage(ord) {
     var page = getPage(ord);
     if (page != undefined) {
 	var fix = $('#fixiframe').prop('checked');
-	var iframe = $('<iframe src="'+page+'" '+(fix ? ' scrolling="no"' : '')+'/>').data('ord', ord);
+	var iframe = $('<iframe sandbox="allow-forms allow-popups allow-same-origin allow-scripts" src="'+page+'" '+(fix ? ' scrolling="no"' : '')+'/>').data('ord', ord);
 	return iframe;
     }
 }
