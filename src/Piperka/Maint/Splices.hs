@@ -112,7 +112,11 @@ processSubmit u = do
     withExceptT (T.pack . show) $ insertComic entry
     when (acceptbanner entry) $ withExceptT (T.pack . show) $
       ExceptT $ saveFromSubmit (fromIntegral $ sid entry) (fromIntegral newCid)
-    withExceptT (T.pack . show) $ deleteSubmit entry
+    withExceptT (T.pack . show) $ do
+      deleteSubmit entry
+      refreshAlphabet
+      commit
+      comicTitles
     when (wantsEmail entry) $ do
       let msg = T.replace "__NEWCID__" (T.pack $ show $ newCid)
                 (emailMessage entry)
