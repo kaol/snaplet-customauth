@@ -12,6 +12,7 @@ module Site
 ------------------------------------------------------------------------------
 import Control.Concurrent.ParallelIO.Local
 import Control.Lens
+import Control.Monad
 import Control.Monad.Trans
 import Crypto.Hash.MD5
 import Data.ByteString (ByteString, readFile)
@@ -21,13 +22,13 @@ import qualified Data.Configurator
 import Data.Monoid
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Text.Encoding (decodeUtf8)
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Time.Clock
 import Database.Memcache.Client as M
 import Heist
 import Network.HTTP.Client.TLS
 import Prelude hiding (readFile)
-import Snap.Core (Cookie(..), ifTop, modifyResponse, setResponseCode)
+import Snap.Core
 import Snap.Snaplet
 import Snap.Snaplet.CustomAuth hiding (sessionCookieName)
 import Snap.Snaplet.Hasql
@@ -42,20 +43,23 @@ import Piperka.API
 import Piperka.Auth (authHandler, mayCreateAccount)
 import Piperka.ComicInfo.Tag
 import Piperka.ComicInfo.External
+import Piperka.HTTPS
 import Piperka.OAuth2
 import Piperka.Splices
 import Piperka.Update.Handlers
 
 ------------------------------------------------------------------------------
 -- | The application's routes.
-routes :: IO [(ByteString, Handler App App ())]
-routes = do
+routes
+  :: ByteString
+  -> IO [(ByteString, Handler App App ())]
+routes hostname = do
   let apiRoutes =
         [ ("/s/cinfo/:cid", comicInfo)
         , ("/s/qsearch", quickSearch)
         , ("/s/tagslist/:tagid", tagList)
-        , ("/s/uprefs", userPrefs)
-        , ("/s/archive/:cid", dumpArchive)
+        , ("/s/uprefs", userPrefs hostname)
+        , ("/s/archive/:cid", dumpArchive hostname)
         , ("/s/profile", profileSubmission)
         , ("/s/attachProvider/:provider", attachProvider)
         , ("/s/submit", receiveSubmit)
@@ -72,6 +76,7 @@ routes = do
                          , "newuser.html"
                          , "include/cinfo"
                          , "updates.html"
+                         , "reader"
                          ]
   templateRoutes <-
     (map fromString .
@@ -82,7 +87,10 @@ routes = do
      filter ((== ".tpl") . reverse . take 4 . reverse) .
      filter ((> 4) . length)
     ) <$> listDirectory "snaplets/heist/templates"
-  return $ mapped._2 %~ bracketDbOpen $ apiRoutes <>
+  return $
+    ([ ("reader", cRender "reader")
+     ] <>) $
+    mapped._2 %~ bracketDbOpen $ apiRoutes <>
     (map (\x -> (x, authHandler False $ cRender x)) templateRoutes) <>
     [ ("account.html", authHandler False $
         accountUpdateHandler >> cRender "account.html")
@@ -95,14 +103,22 @@ routes = do
     , ("index.html", authHandler False $ cRender "index")
     ]
 
-staticRoutes :: [(ByteString, Handler App App ())]
-staticRoutes = mapped._2 %~ serveDirectory $
+staticRoutes
+  :: ByteString
+  -> [(ByteString, Handler App App ())]
+staticRoutes hostname =
+  ([("d/comictitles.json", cors >> serveFile "files/d/comictitles.json")] <>) $
+  mapped._2 %~ serveDirectory $
   [ ("d", "files/d")
   , ("blog", "files/blog")
   , ("banners", "files/banners")
   , ("/d/readershistory", "files/readershistory")
   , ("", "static")
   ]
+  where
+    cors = do
+      modifyResponse $
+        addHeader "Access-Control-Allow-Origin" ("http://" <> hostname)
 
 data ParLabels a b c d = L1 a | L2 b | L3 c | L4 d
 
@@ -126,6 +142,8 @@ app = makeSnaplet "piperka" "Piperka application." Nothing $ do
   now <- liftIO getCurrentTime
   let cookieEnd = addUTCTime (5*365*24*60*60) now
   cfg <- getSnapletUserConfig
+  hostname <- liftIO $ Data.Configurator.lookupDefault "piperka.net" cfg "hostname"
+  let hostname' = encodeUtf8 hostname
   ads <- liftIO $ Data.Configurator.lookupDefault False cfg "ads"
   conn <- liftIO $ Data.Configurator.lookupDefault "postgresql://kaol@/piperka" cfg "db"
   mgr <- liftIO newTlsManager
@@ -138,11 +156,11 @@ app = makeSnaplet "piperka" "Piperka application." Nothing $ do
                  , (fmap L3) <$> generateTagFormPart
                  , (fmap L3) <$> generateExternalFormPart
                  ] <> map (\x -> (fmap L4) <$> generateMD5 x) jsFiles))
-  let initData = AppInit efp tfp $
+  let initData = AppInit efp tfp hostname $
         zip (map T.pack jsFiles) $ map (\ ~(L4 x) -> x) jsHash
   let authSettings =  defAuthSettings
        & authSetCookie .~ \x -> Cookie "p_session" x (Just cookieEnd)
-                                Nothing (Just "/") False True
+                                Nothing (Just "/") True True
   m <- nestSnaplet "messages" messages $
        initCookieSessionManager "site_key.txt" "messages" Nothing (Just 3600)
   let m' = subSnaplet messages
@@ -158,8 +176,9 @@ app = makeSnaplet "piperka" "Piperka application." Nothing $ do
        & hcCompiledSplices .~ (piperkaSplices initData)
        & hcTemplateLocations .~ [loadTemplates "templates"]
   d <- nestSnaplet "" db $ hasqlInit conn
-  addRoutes =<< (liftIO routes)
-  addRoutes staticRoutes
+  wrapSite ((sslRedirectHandler hostname') >>)
+  addRoutes =<< (liftIO $ routes hostname')
+  addRoutes $ staticRoutes hostname'
   addRoutes [("", bracketDbOpen $ authHandler False $
                modifyResponse (setResponseCode 404) >> cRender "404_")]
   return $ App h a a' d m elookup tlookup mgr mc

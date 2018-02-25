@@ -132,6 +132,7 @@ data App = App
 data AppInit = AppInit
   { extFormPart :: Text
   , tagFormPart :: Text
+  , appHostname :: Text
   , scriptHash :: [(Text, Text)]
   }
   deriving (Show)

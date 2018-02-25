@@ -13,8 +13,10 @@ import Control.Monad.Trans
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import Data.Aeson
+import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import Data.ByteString.Char8 (split)
+import Data.Monoid
 import Data.Scientific
 import Data.Text (Text)
 import Data.UUID
@@ -85,8 +87,13 @@ decodeBookmarkSet b = do
           _ -> Page <$> maybeParseInt d
   return (c', d')
 
-userPrefs :: AppHandler ()
-userPrefs = do
+userPrefs
+  :: ByteString
+  -> AppHandler ()
+userPrefs hostname = do
+  modifyResponse $
+    addHeader "Access-Control-Allow-Origin" ("http://" <> hostname) .
+    addHeader "Access-Control-Allow-Credentials" "true"
   bookmark <- (decodeBookmarkSet =<<) <$> getParam "bookmark[]"
   maybe readPrefs (\b -> runUserQueries $ setBookmark b) bookmark
   where

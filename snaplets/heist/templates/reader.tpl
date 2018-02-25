@@ -3,12 +3,12 @@
   <head>
     <meta charset="UTF-8"/>
     <title>Piperka Reader (beta)</title>
-    <link rel="stylesheet" type="text/css" href="/reader.css">
+    <link rel="stylesheet" type="text/css" href="https://${h:hostname}/reader.css">
     <META HTTP-EQUIV="CACHE-CONTROL" CONTENT="NO-CACHE">
     <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
     <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
-    <script src="/viewarchive.js"></script>
-    <script src="/reader.js"></script>
+    <script src="https://${h:hostname}/viewarchive.js"></script>
+    <script src="https://${h:hostname}/reader.js"></script>
   </head>
 
   <body>
@@ -43,7 +43,7 @@
 	<label for="autoupdate">autoupdate</label><input type="checkbox" id="autoupdate" checked="1"/></span>
       | <span id="title"></span>
       | <div id="pagecount">Page <span id="pagenum"></span> / <span id="pagetotal"></span></div>
-      <a href="/" title="Return to Piperka">P</a> <a id="tocomic" title="Exit to comic">&darr;</a>
+      <a href="https://${h:hostname}/" title="Return to Piperka">P</a> <a id="tocomic" title="Exit to comic">&darr;</a>
       <span id="preurl">&nbsp;</span><input type="text" id="url" readonly="1"/>
     </div>
     <div id="reader" tabindex="1000">

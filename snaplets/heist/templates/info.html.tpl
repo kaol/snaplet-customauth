@@ -22,7 +22,7 @@
 	    </h:ifSubscribed>
 	  </li>
 	</h:ifLoggedIn>
-	<li><a href="/reader/?cid=${h:cid}">View in Piperka Reader</a>
+	<li><a href="http://${h:hostname}/reader/?cid=${h:cid}">View in Piperka Reader</a>
 	<h:ifMapped>
 	  <li><a href="/map/?cid=${h:cid}">View on Piperka Map</a></li>
 	</h:ifMapped>

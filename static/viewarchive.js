@@ -3,7 +3,7 @@ function makePageDialog(cid) {
     var archivedialog = $('<div id="archivedialog" title="Archive"><table><tr><th>#</th><th class="page">Page</th></table></div>')
 	.dialog({autoOpen: false, minwidth: 300, width: 400, height: 300, open: centerDialog});
     var table = archivedialog.find('table');
-    return $.when($.ajax({url:'/s/archive/'+cid, method: 'GET', dataType: 'json'}))
+    return $.when($.ajax({url:'https://'+window.location.hostname+'/s/archive/'+cid, method: 'GET', dataType: 'json'}))
 	.then(function(rpy){
 	    archivedialog.data(rpy);
 	    $.each(rpy.pages, function(idx){

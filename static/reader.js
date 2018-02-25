@@ -94,7 +94,14 @@ function setPage(ord, button, moveforward) {
     $('#pagenum').text(ord+1);
     if (userdata) {
 	if (moveforward && $('#autoupdate').prop('checked')) {
-	    $.post('/s/uprefs', {bookmark:[cid, ord+1], csrf_ham:csrf_ham}, refreshBookmark, 'json');
+	    $.ajax({type: 'POST',
+		    url: 'https://'+window.location.hostname+'/s/uprefs',
+		    data: {bookmark:[cid, ord+1], csrf_ham:csrf_ham},
+		    success: refreshBookmark,
+		    dataType: 'json',
+		    xhrFields: {withCredentials: true},
+		    crossDomain: true
+		   });
 	} else {
 	    refreshBookmark('keep');
 	}
@@ -135,7 +142,14 @@ function initcid(newcid) {
 		if ($(this).has('#currentpagemarker').length) {
 		    if (subscriptions) {
 			var thisrow = $(this);
-			$.post('/s/uprefs', {bookmark:[cid, thisrow.data('ord')], csrf_ham:csrf_ham}, refreshBookmark, 'json');
+			$.ajax({method: 'POST',
+				url: 'https://'+window.location.hostname+'/s/uprefs',
+				data: {bookmark:[cid, thisrow.data('ord')], csrf_ham:csrf_ham},
+				success: refreshBookmark,
+				dataType: 'json',
+				xhrFields: {withCredentials: true},
+				crossDomain: true
+			       });
 		    }
 		} else {
 		    setPage($(this).data('ord'));
@@ -184,12 +198,14 @@ $(document).ready(function(){
 	}
     });
     if (csrf_ham) {
-	userreq = $.ajax({url: '/s/uprefs',
+	userreq = $.ajax({url: 'https://'+window.location.hostname+'/s/uprefs',
 			  method: 'POST',
-			  dataType: 'json'
+			  dataType: 'json',
+			  xhrFields: {withCredentials: true},
+			  crossDomain: true
 			 });
     }
-    comictitlesreq = $.ajax({url: '/d/comictitles.json',
+    comictitlesreq = $.ajax({url: 'https://'+window.location.hostname+'/d/comictitles.json',
 			     method: 'GET',
 			     dataType: 'json'
 			    });

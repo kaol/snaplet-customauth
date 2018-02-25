@@ -9,8 +9,10 @@ module Piperka.API.Archive (dumpArchive) where
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Except
 import Data.Aeson
+import Data.ByteString (ByteString)
 import Data.Int
 import Data.Text (Text)
+import Data.Monoid
 import Data.Vector (Vector)
 import GHC.Generics
 import Hasql.Query
@@ -49,8 +51,12 @@ decodePageInfo =
   <$> DE.nullableValue DE.text
   <*> DE.value DE.int4
 
-dumpArchive :: AppHandler ()
-dumpArchive = do
+dumpArchive
+  :: ByteString
+  -> AppHandler ()
+dumpArchive hostname = do
+  modifyResponse $
+    addHeader "Access-Control-Allow-Origin" ("http://" <> hostname)
   c <- maybe (simpleFail 404 "Required parameter tagid missing") return =<<
        fmap (fromIntegral . snd) <$> getCid
   runQueries $ do

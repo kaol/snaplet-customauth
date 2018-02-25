@@ -57,6 +57,7 @@ piperkaSplices
   :: AppInit
   -> Splices (C.Splice AppHandler)
 piperkaSplices ini = do
+  "hostname" ## return $ yieldPureText $ appHostname ini
   "submitAPI" ## submitAPISplices
   "script" ## hashTaggedNode "script" "src"
   "stylesheet" ## hashTaggedNode "link" "href"
