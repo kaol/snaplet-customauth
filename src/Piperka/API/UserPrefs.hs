@@ -198,4 +198,10 @@ tokenAuth token =
   ExceptT $ run $ query token $ statement sql (EN.value EN.uuid)
   (DE.maybeRow $ DE.value DE.int4) True
   where
-    sql = "SELECT uid FROM p_session WHERE token_for IS NOT NULL AND ses=$1"
+    sql = "WITH lg AS (\
+          \SELECT uid, ses, token_for FROM p_session \
+          \WHERE token_for IS NOT NULL AND ses=$1) \
+          \, upd AS (\
+          \UPDATE p_session SET last_active=NOW() \
+          \FROM lg WHERE p_session.ses=lg.ses) \
+          \SELECT uid FROM lg"

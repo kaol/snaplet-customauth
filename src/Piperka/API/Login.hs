@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Piperka.API.Login (apiLogin) where
+module Piperka.API.Login (apiLogin, tokenLogin) where
 
 import Contravariant.Extras.Contrazip
 import Control.Monad.Trans
@@ -32,8 +32,19 @@ login u p = run $ query (u, p) $ statement sql
              <*> (DE.value DE.uuid)
              <*> (DE.value DE.uuid)) True
   where
-    sql = "SELECT name, p_session, csrf_ham FROM auth_login($1, $2) \
-          \JOIN users USING (uid)"
+    sql = "WITH lg AS (\
+          \SELECT name, p_session, csrf_ham FROM auth_login($1, $2) \
+          \JOIN users USING (uid)) \
+          \, upd AS (INSERT INTO appuser_token SELECT csrf_ham FROM lg) \
+          \SELECT name, p_session, csrf_ham FROM lg"
+
+tokenLogin
+  :: UUID
+  -> AppHandler (Either Error (Maybe UserID))
+tokenLogin u = run $ query u $ statement sql (EN.value EN.uuid)
+               (DE.singleRow $ DE.nullableValue DE.int4) True
+  where
+    sql = "SELECT token_login($1)"
 
 apiLogin
   :: AppHandler ()

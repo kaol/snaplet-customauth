@@ -12,22 +12,48 @@ import Snap.Core
 import Snap.Snaplet.Hasql
 
 import Application
+import Piperka.API.Login (tokenLogin)
 import Piperka.Auth (currentUserPlain)
 import Piperka.Update.Statements (updateAndRedirect)
 import Piperka.Util (getParamInt)
 
 mayRedir
   :: AppHandler ()
-mayRedir = void $ runMaybeT $ do
-  usr <- MaybeT currentUserPlain
+mayRedir = maybe unloggedRedir loggedRedir =<< currentUserPlain
+
+-- TODO: Show an error to user.
+hushAndReport
+  :: Show e
+  => AppHandler (Either e (Maybe a))
+  -> MaybeT AppHandler a
+hushAndReport = (either
+                 ((\e -> (lift $ logError $ B8.pack $ show e) >> mzero))
+                 (MaybeT . return) =<<) . lift
+
+-- Piperka App can't pass along session cookie, act with only csrf
+-- token for them.
+unloggedRedir
+  :: AppHandler ()
+unloggedRedir = void $ runMaybeT $ do
+  csrf <- MaybeT $ (fromASCIIBytes =<<) <$> getParam "csrf_ham"
+  uid' <- hushAndReport $ tokenLogin csrf
+  redir uid'
+
+loggedRedir
+  :: MyData
+  -> AppHandler ()
+loggedRedir usr = void $ runMaybeT $ do
   csrf <- MaybeT $ getParam "csrf_ham"
   guard (fromASCIIBytes csrf == (Just $ ucsrfToken usr))
-  redir <- MaybeT $ (fmap (fromIntegral . snd)) <$> getParamInt "redir"
+  redir $ uid usr
+
+redir
+  :: UserID
+  -> MaybeT AppHandler a
+redir usr = do
+  cid <- MaybeT $ (fmap (fromIntegral . snd)) <$> getParamInt "redir"
   offset <- maybe False (== "1") <$> lift (getParam "offset_back")
-  r <- lift $ run $ query (uid usr, redir, offset) updateAndRedirect
-  either (\e -> lift $ logError (B8.pack $ show e))
-    (\url' -> do
-        url <- MaybeT . return $ url'
-        lift $ do
-          modifyResponse $ setHeader "Referrer-policy" "origin"
-          redirect url) r
+  url <- hushAndReport $ run $ query (usr, cid, offset) updateAndRedirect
+  lift $ do
+    modifyResponse $ setHeader "Referrer-policy" "origin"
+    redirect url
