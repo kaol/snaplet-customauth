@@ -339,3 +339,14 @@ float: right;
 #genentry-form input[type="text"] {
     width: 500px;
 }
+
+table.bordered td,th {
+    border-style: solid;
+    border-width: 1px;
+    border-color: #ccc;
+    padding: 3px;
+}
+
+#donation-platforms tr th:first-child {
+    text-align: right;
+}

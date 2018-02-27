@@ -41,6 +41,9 @@
       <div class="sidebar hiliteBG">
 	<div class="control">
 	  <p>
+	    <h:ifLoggedIn>
+	      <a href="/support.html">Support Piperka</a><br/>
+	    </h:ifLoggedIn>
 	    <a href="/about.html">About this site</a>
 	    <br/><a href="/blog/">Blog</a>
 	    <br/><a href="/top.html">Most popular</a>
