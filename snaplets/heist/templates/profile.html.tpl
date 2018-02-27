@@ -32,7 +32,7 @@
       <p class="followcheck"><input type="checkbox" id="myinterest" name="follow" value="${h:profileName}" h:checked=""/><label for="myinterest">Follow <h:profileName/>.</label></p>
     </h:publicFollow>
     <h:havePermission>
-      <p>View <h:yourOrProfileName/> on <a href="${h:mapLink}">Piperka Map</a>.</p>
+      <p>View <h:yourOrProfileName/> on <a href="/map/?profile=${h:profileEsc}">Piperka Map</a>.</p>
       <p>Total comic pages read by <h:youOrThisUser/>: <h:grandTotal/> in <h:nComics/> comics.</p>
       <div><h:writeUp/></div>
       <h:profileSortOptions/>

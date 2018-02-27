@@ -28,7 +28,7 @@ parseAction
   :: (IsString a, Eq a)
   => a
   -> Maybe Action
-parseAction "getSubs" = Just GetSubs
+parseAction "getsubs" = Just GetSubs
 parseAction "follow" = Just Follow
 parseAction "unfollow" = Just UnFollow
 parseAction "permit" = Just Permit

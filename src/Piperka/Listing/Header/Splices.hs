@@ -17,7 +17,6 @@ import Heist
 import Heist.Compiled
 import Heist.Compiled.Extra (checkedSplice, checkedAttrSplice, eitherDeferMap)
 import qualified HTMLEntities.Text as HTML
-import Network.HTTP.Types.URI (encodePath)
 import Snap
 import qualified Text.XmlHtml as X
 
@@ -67,6 +66,7 @@ listingHeaderSplices mode = commonHeaderSplices mode
 profileSplices :: Splices (RuntimeSplice AppHandler ListingParam -> Splice AppHandler)
 profileSplices = mapV (. fmap getProfile) $ do
   "profileName" ## pureSplice . textSplice $ HTML.text . name . profile
+  "profileEsc" ## pureSplice $ urlEncodeBuilder . encodeUtf8 . name . profile
   "isPrivate" ## isPrivate
   "isMine" ## isMine
   "mayAllowFollow" ## mayAllowFollow
@@ -78,7 +78,6 @@ profileSplices = mapV (. fmap getProfile) $ do
   "youOrThisUser" ## youOrThisUser
   "grandTotal" ## pureSplice . textSplice $ T.pack . show . total . profile
   "nComics" ## pureSplice . textSplice $ T.pack . show . inComics . profile
-  "mapLink" ## mapLink
   "writeUp" ## pureSplice . textSplice $ maybe "" id . writeup . profile
   "profileSortOptions" ## sortOptions
   where
@@ -128,9 +127,6 @@ profileSplices = mapV (. fmap getProfile) $ do
       p <- n
       return $ case p of Own _ -> "you"
                          _ -> "this user"
-    mapLink = bindLater $ \p ->
-      return $ encodePath ["/map/"]
-        [("profile", Just $ encodeUtf8 $ name $ profile p)]
     sortOptions n = do
       let linkSplice = do
             typ <- fromJust . X.getAttribute "type" <$> getParamNode
