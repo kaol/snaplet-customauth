@@ -24,7 +24,8 @@ authHandler
 authHandler alwaysMinimal action = do
   failed <- liftIO $ newIORef False
   let loginFailed = withTop' id $ liftIO $ writeIORef failed True
-  useMinimal <- if alwaysMinimal then return True else isJust <$> getParam "min"
+  useMinimal <- if alwaysMinimal then return True
+    else any isJust <$> mapM getParam ["min", "redir"]
   modify $ set minimal useMinimal
   case useMinimal of
     True -> (withTop apiAuth $ combinedLoginRecover loginFailed) >> return ()

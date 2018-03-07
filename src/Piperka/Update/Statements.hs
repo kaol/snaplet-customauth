@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE Arrows #-}
 
 module Piperka.Update.Statements (updateOptionsFetch, updateAndRedirect) where
 
@@ -41,7 +42,10 @@ updateOptionsFetch = statement sql encode (DE.singleRow updateOptionsRow) True
 
 updateAndRedirect
   :: Query (UserID, Int32, Bool) (Maybe ByteString)
-updateAndRedirect = statement sql encode (DE.maybeRow $ DE.value DE.bytea) True
+updateAndRedirect = proc params -> do
+  statement "COMMIT" EN.unit DE.unit True -< ()
+  statement "BEGIN" EN.unit DE.unit True -< ()
+  statement sql encode (DE.maybeRow $ DE.value DE.bytea) True -< params
   where
     encode = contrazip3 (EN.value EN.int4) (EN.value EN.int4) (EN.value EN.bool)
     sql = "WITH page AS (\
