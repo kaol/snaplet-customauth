@@ -102,7 +102,7 @@ deadInfoFetch taglookup =
   (DE.maybeRow $ decodeDeadComicInfo taglookup) True
   where
     sql = "SELECT cid, title, homepage, 0 AS readers, false AS public_readers, \
-          \max_ord_of(cid)+1, (SELECT count(*) FROM page_fragment WHERE cid=c.cid), \
+          \max_ord_of(cid)+1, (SELECT count(*) FROM page_fragments WHERE cid=c.cid), \
           \(SELECT url_base||name||url_tail FROM updates WHERE cid=c.cid AND ord=0 LIMIT 1), \
           \(SELECT url_base||name||url_tail FROM updates WHERE cid=c.cid AND name IS NOT NULL ORDER BY ord DESC LIMIT 1), \
           \(SELECT name IS NULL FROM updates WHERE cid=c.cid ORDER BY ord DESC LIMIT 1), \
