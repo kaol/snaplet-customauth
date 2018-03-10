@@ -12,7 +12,7 @@ procedure do everything.
 ## Design
 
 This code has been adapted from Snap's own authentication code.  The
-main differences are that AuthManager takes two type parameters, one
+main differences are that AuthManager takes four type parameters, one
 of which is the custom user type, and that you'll need to write your
 own backend.  It may have arbitrary application specific data attached
 to the user data, it just has to implement the UserData type class,
@@ -20,35 +20,10 @@ which exposes a few common attributes that the authentication
 management code needs and uses.
 
 Also, the only session variable storage and retireval in this model is
-done against the database.  I don't plan on using the cookie and
-symmetric site key based Snap.Snaplet.Session along with this code.
+done against the database.  It doesn't use Snap.Snaplet.Session.
 
 CustomAuth doesn't offer any ready backends, but lets you implement
-your own with the IAuthBackend type implementation.  I may yet rename
-that type class.
+your own with the IAuthBackend type implementation.
 
-## Current status
-
-Very much work in progress.  This version still includes the web site
-code that I'm working on along with this.  That part pretty much looks
-like Snap default template.  Look at src/Backend.hs to see the main
-idea of how I wanted to use an authentication framework.  I'll remove
-that code if/when this code moves to Hackage.
-
-The included cabal file has plenty of dependencies that
-snaplet-customauth won't have.  I opted to use Hasql for my database
-code.  One thing that needs to change is to use snaplet-hasql and not
-pass a plain hasql pool to my authentication library.
-
-Running this code requires getting Piperka's schema.  My plan is to
-work on snaplet-customauth along with the new Piperka backend for now.
-
-## Update 2016-02-07
-
-This version includes a new Snap.Snaplet.Hasql implementation, for the
-new Hasql 0.19 version.  My idea is to wrap all handlers requiring a
-DB handle with code that acquires a handle and do everything in one
-transaction, including authentication.  This means further divergence
-from Snap.Snaplet.Auth since there's no longer a backend parameter but
-it's expected that the backend implementation gets whatever it needs
-for authentication from the site's own handler.
+This code was written for piperka.net though I hope it would be useful
+for other people.

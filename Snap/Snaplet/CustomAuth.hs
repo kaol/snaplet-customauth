@@ -16,6 +16,7 @@ module Snap.Snaplet.CustomAuth
   , logoutUser
   , recoverSession
   , combinedLoginRecover
+  , setUser
   , currentUser
   , getAuthFailData
   , resetAuthFailData
