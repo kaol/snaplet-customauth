@@ -27,3 +27,9 @@ your own with the IAuthBackend type implementation.
 
 This code was written for piperka.net though I hope it would be useful
 for other people.
+
+## How to use this library
+
+A tutorial and Haddock documentation are still missing.
+[piperka.net](https://gitlab.com/kaol/piperka) is the library's
+primary user.

@@ -3,12 +3,17 @@ Version:             0.1.0
 Synopsis:            Alternate authentication snaplet
 Description:         More customizable authentication snaplet with OAuth2 support
 License:             BSD3
+License-File:        LICENSE
 Author:              Kari Pahula
 Maintainer:          kaol@iki.fi
 Stability:           Experimental
 Category:            Web
 Build-type:          Simple
-Cabal-version:       >=1.2
+Cabal-version:       >=1.6
+
+source-repository head
+  type: git
+  location: https://github.com/kaol/snaplet-customauth
 
 library
   exposed-modules:
