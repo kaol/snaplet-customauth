@@ -1,5 +1,5 @@
 Name:                snaplet-customauth
-Version:             0.1.1
+Version:             0.1.2
 Synopsis:            Alternate authentication snaplet
 Description:         More customizable authentication snaplet with OAuth2 support
 License:             BSD3
@@ -32,13 +32,13 @@ library
 
   Build-depends:
     base                      >= 4.4     && < 5,
-    lens                      >= 3.7.6   && < 4.16,
+    lens                      >= 3.7.6   && < 4.17,
     bytestring                >= 0.9.1   && < 0.11,
     base64-bytestring         >= 1.0.0.1 && < 1.1,
-    heist                     >= 1.0.1   && < 1.1,
+    heist                     >= 1.0.1   && < 1.2,
     mtl                       >= 2       && < 3,
     transformers              >= 0.4     && < 0.6,
-    errors                    >= 2.1     && < 2.2,
+    errors                    >= 2.3     && < 2.4,
     snap                      >= 1.1     && < 1.2,
     snap-core                 >= 1.0     && < 1.1,
     configurator              >= 0.3     && < 0.4,
@@ -53,6 +53,6 @@ library
     containers                >= 0.5.6   && < 0.6,
     unordered-containers      >= 0.2.7.1 && < 0.3,
     aeson                     >= 1.2     && < 1.4,
-    uri-bytestring            >= 0.2.3   && < 0.3,
-    map-syntax                >= 0.2     && < 0.3,
+    uri-bytestring            >= 0.2.3   && < 0.4,
+    map-syntax                >= 0.2     && < 0.4,
     random                    >= 1.1     && < 1.2
