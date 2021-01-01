@@ -19,9 +19,9 @@ import Control.Monad.State
 import Data.Aeson
 import qualified Data.Binary
 import Data.Binary (Binary)
-import Data.Binary.Orphans ()
+import Data.Binary.Instances ()
 import qualified Data.ByteString.Base64
-import Data.ByteString.Lazy (toStrict, fromStrict)
+import Data.ByteString.Lazy (ByteString, toStrict, fromStrict)
 import Data.Char (chr)
 import qualified Data.Configurator as C
 import Data.HashMap.Lazy (HashMap)
@@ -73,7 +73,7 @@ oauth2Init s = do
            <*> lk ".identityField"
            <*> (OAuth2
                 <$> lk ".clientId"
-                <*> lk ".clientSecret"
+                <*> (lift $ runMaybeT $ lk ".clientSecret")
                 <*> lku ".endpoint.auth"
                 <*> lku ".endpoint.access"
                 <*> (pure $ Just callback))
@@ -132,24 +132,20 @@ redirectToProvider' provider = do
   redirect' redirUrl 303
 
 getUserInfo
-  :: OAuth2Settings u i e b
+  :: MonadIO m
+  => Manager
   -> Provider
   -> AccessToken
-  -> Handler b (AuthManager u e b) (Maybe Text)
-getUserInfo s provider token = do
+  -> ExceptT (Maybe ByteString) m Text
+getUserInfo mgr provider token = do
   let endpoint = identityEndpoint provider
-  let mgr = httpManager s
-  liftIO $ runMaybeT $ do
-    dat <- MaybeT $ hush <$> authGetJSON' mgr token endpoint
-    MaybeT . return $ lookupProviderInfo dat
+  (withExceptT Just $ ExceptT $ liftIO $ authGetJSON mgr token endpoint) >>=
+    (maybe (throwE Nothing) pure . lookupProviderInfo)
   where
-    authGetJSON' :: Manager -> AccessToken -> URI
-                 -> IO (OAuth2Result (HashMap Text Value) (HashMap Text Value))
-    authGetJSON' = authGetJSON
     lookup' a b = maybeText =<< M.lookup a b
     maybeText (String x) = Just x
     maybeText _ = Nothing
-    lookupProviderInfo dat = lookup' (identityField provider) dat
+    lookupProviderInfo = lookup' (identityField provider)
 
 oauth2Callback
   :: IAuthBackend u i e b
@@ -184,14 +180,15 @@ oauth2Callback' s provider = do
       err <- MaybeT $ lift $ getParam "error"
       lift $ throwE $ ProviderError $ hush $ decodeUtf8' err
     -- Get the user id from provider
-    (maybe (throwE IdExtractionFailed) return =<<) $ runMaybeT $ do
-      code <- MaybeT $ (fmap ExchangeToken) <$> (lift $ getParamText "code")
-      -- TODO: catch?
-      token <- either (const $ lift $ throwE AccessTokenFetchError) return =<< liftIO
-        (fetchAccessToken mgr param code)
+    (maybe (throwE (IdExtractionFailed Nothing)) pure =<<
+      (fmap ExchangeToken) <$> (lift $ getParamText "code")) >>=
+    -- TODO: catch?
+      (liftIO . fetchAccessToken mgr param >=>
+       either (const $ throwE AccessTokenFetchError) pure >=>
       -- TODO: get user id (sub) from idToken in token, if
       -- available. Requires JWT handling.
-      MaybeT $ lift $ getUserInfo s provider (accessToken token)
+       withExceptT (IdExtractionFailed . ((hush . decodeUtf8' . toStrict) =<<)) .
+        getUserInfo (httpManager s) provider . accessToken)
   either (setFailure ((oauth2Failure s) SCallback) (Just $ providerName provider) .
           Right . Create . OAuth2Failure)
     (oauth2Success s provider) res

@@ -6,7 +6,7 @@ module Snap.Snaplet.CustomAuth.Types where
 
 import Control.Lens.TH
 import Data.Binary
-import Data.Binary.Orphans ()
+import Data.Binary.Instances ()
 import Data.ByteString
 import Data.Text (Text)
 import Data.Time.Clock (UTCTime)
@@ -36,7 +36,7 @@ data CreateFailure =
 
 data OAuth2Failure =
     StateNotStored | StateNotReceived | ExpiredState | BadState
-  | ConfigurationError | IdExtractionFailed | NoStoredToken
+  | ConfigurationError | IdExtractionFailed (Maybe Text) | NoStoredToken
   | AlreadyUser | AlreadyLoggedIn
   | IdentityInUse
   | ProviderError (Maybe Text)
