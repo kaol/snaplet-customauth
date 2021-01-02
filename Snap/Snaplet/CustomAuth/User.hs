@@ -5,8 +5,11 @@ module Snap.Snaplet.CustomAuth.User where
 import Control.Error.Util
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
+import Data.ByteString (ByteString)
+import qualified Data.Configurator as C
 import Data.Maybe
 import Data.Text.Encoding
+import Data.Time.Clock (addUTCTime, getCurrentTime)
 import Snap
 
 import Snap.Snaplet.CustomAuth.Types (AuthUser(..))
@@ -17,10 +20,14 @@ setUser
   => u
   -> Handler b (AuthManager u e b) ()
 setUser usr = do
-  setter <- gets setCookie
+  cfg <- getSnapletUserConfig
+  secure <- fmap (== "https") $ liftIO $ C.lookupDefault ("https" :: ByteString) cfg "protocol"
   let udata = extractUser usr
-  -- TODO
-  let wafer = setter $ session udata
+  (name, lifetime) <- gets ((,) <$> sessionCookieName <*> cookieLifetime)
+  cookieTime <- runMaybeT $ do
+    diff <- MaybeT $ pure lifetime
+    liftIO $ addUTCTime diff <$> getCurrentTime
+  let wafer = Cookie name (session udata) cookieTime Nothing (Just "/") secure True
   modifyResponse $ addResponseCookie wafer
   modify $ \mgr -> mgr { activeUser = Just usr }
 

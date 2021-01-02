@@ -9,7 +9,7 @@ import Data.Binary
 import Data.Binary.Instances ()
 import Data.ByteString
 import Data.Text (Text)
-import Data.Time.Clock (UTCTime)
+import Data.Time.Clock (UTCTime, NominalDiffTime)
 import GHC.Generics (Generic)
 import Network.OAuth.OAuth2 (OAuth2)
 import URI.ByteString (URI)
@@ -68,8 +68,8 @@ data SavedAction = SavedAction
   { actionProvider :: Text
   , actionStamp :: UTCTime
   , actionUser :: Maybe ByteString
-  -- Is the action expected to match with an ID attached to the user.
-  -- Use False if using the action to attach a new ID.
+  -- | Is the action expected to match with an ID attached to the
+  -- user.  Use False if using the action to attach a new ID.
   , requireUser :: Bool
   , savedAction :: ByteString
   } deriving (Generic)
@@ -84,11 +84,10 @@ data AuthUser = AuthUser
 
 data AuthSettings = AuthSettings
   { _authName :: Text
-  , _authSetCookie :: ByteString -> Cookie
+  , _authCookieLifetime :: Maybe NominalDiffTime
   }
 
 makeLenses ''AuthSettings
 
 defAuthSettings :: AuthSettings
-defAuthSettings = AuthSettings "auth" $ \x ->
-  Cookie "_session" x Nothing Nothing (Just "/") False True
+defAuthSettings = AuthSettings "auth" Nothing

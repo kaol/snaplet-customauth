@@ -53,7 +53,7 @@ oauth2Init s = do
   cfg <- getSnapletUserConfig
   root <- getSnapletRootURL
   hostname <- liftIO $ C.require cfg "hostname"
-  scheme <- liftIO $ C.lookupDefault "http" cfg "protocol"
+  scheme <- liftIO $ C.lookupDefault "https" cfg "protocol"
   names <- liftIO $ C.lookupDefault [] cfg "oauth2.providers"
   -- TODO: use discovery
   let makeProvider name = let

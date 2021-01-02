@@ -17,6 +17,7 @@ import Data.Binary (Binary)
 import Data.ByteString (ByteString)
 import Data.HashMap.Lazy (HashMap)
 import Data.Text (Text)
+import Data.Time.Clock (NominalDiffTime)
 import Network.HTTP.Client (Manager)
 
 import Snap.Core
@@ -43,7 +44,7 @@ class (UserData u, Binary i, Show e, Eq e) => IAuthBackend u i e b | u -> b, b -
 
 data AuthManager u e b = forall i. IAuthBackend u i e b => AuthManager
   { activeUser :: UserData u => Maybe u
-  , setCookie :: ByteString -> Cookie
+  , cookieLifetime :: Maybe NominalDiffTime
   , sessionCookieName :: ByteString
   , userField :: ByteString
   , passwordField :: ByteString

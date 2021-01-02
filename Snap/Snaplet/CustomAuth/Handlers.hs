@@ -131,7 +131,7 @@ authInit oa s = makeSnaplet (view authName s) "Custom auth" Nothing $ do
   ps <- maybe (return M.empty) oauth2Init oa
   return $ AuthManager
     { activeUser = Nothing
-    , setCookie = s ^. authSetCookie
+    , cookieLifetime = s ^. authCookieLifetime
     , sessionCookieName = scn
     , userField = un
     , passwordField = pn
