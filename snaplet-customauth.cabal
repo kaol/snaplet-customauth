@@ -9,13 +9,14 @@ Maintainer:          kaol@iki.fi
 Stability:           Experimental
 Category:            Web
 Build-type:          Simple
-Cabal-version:       >=1.6
+Cabal-version:       >=1.10
 
 source-repository head
   type: git
   location: https://github.com/kaol/snaplet-customauth
 
 library
+  default-language:    Haskell2010
   exposed-modules:
     Snap.Snaplet.CustomAuth,
     Snap.Snaplet.CustomAuth.OAuth2
