@@ -31,9 +31,8 @@ setUser usr = do
     name <> "=" <> session udata <>
     (maybe "" (("; Max-Age=" <>) . toStrict . Text.Show.ByteString.show @Int . floor) lifetime) <>
     "; Path=/" <>
-    (if secure then "; Secure" else "") <>
-    "; HttpOnly" <>
-    "; SameSite=Lax"
+    (if secure then "; Secure; SameSite=None" else "") <>
+    "; HttpOnly"
   modify $ \mgr -> mgr { activeUser = Just usr }
 
 currentUser :: UserData u => Handler b (AuthManager u e b) (Maybe u)

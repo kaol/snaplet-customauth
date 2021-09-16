@@ -1,5 +1,5 @@
 Name:                snaplet-customauth
-Version:             0.2
+Version:             0.2.1
 Synopsis:            Alternate authentication snaplet
 Description:         More customizable authentication snaplet with OAuth2 support
 License:             BSD3
