@@ -1,8 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Snap.Snaplet.CustomAuth.OAuth2.Internal
   ( oauth2Init
@@ -12,55 +10,68 @@ module Snap.Snaplet.CustomAuth.OAuth2.Internal
 
 import Control.Error.Util hiding (err)
 import Control.Lens
-import Control.Monad.Except
+import Control.Monad
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import Control.Monad.State
+import qualified Crypto.Hash
+import Crypto.Random (getRandomBytes)
 import Data.Aeson
 import qualified Data.Binary
 import Data.Binary (Binary)
-import Data.Binary.Instances ()
+import qualified Data.ByteArray as ByteArray
+import qualified Data.ByteString as B
 import qualified Data.ByteString.Base64
+import qualified Data.ByteString.Base64.URL as URL
 import Data.ByteString.Lazy (ByteString, toStrict, fromStrict)
-import Data.Char (chr)
 import qualified Data.Configurator as C
-import Data.HashMap.Lazy (HashMap)
-import qualified Data.HashMap.Lazy as M
-import Data.Maybe (isJust, isNothing, catMaybes)
-import Data.Monoid
+import Data.List (find, lookup)
+import Data.Map (Map)
+import qualified Data.Map as M
+import Data.Maybe (isJust, isNothing, catMaybes, fromMaybe, fromJust, maybeToList)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeLatin1, decodeUtf8', encodeUtf8)
-import Data.Time.Clock (UTCTime, getCurrentTime, diffUTCTime)
+import Data.Time.Clock (UTCTime(utctDayTime), getCurrentTime, diffUTCTime)
 import Network.HTTP.Client (Manager)
-import Network.OAuth.OAuth2
+import qualified Network.HTTP.Client as HTTP
+import qualified Network.URI
+import Network.OAuth.OAuth2 hiding (fetchAccessToken, error)
+import Network.OAuth.OAuth2.AuthorizationRequest
+import Network.OAuth.OAuth2.TokenRequest
 import Prelude hiding (lookup)
 import Snap hiding (path)
 import Snap.Snaplet.Session
-import System.Random
 import URI.ByteString
 
 import Snap.Snaplet.CustomAuth.AuthManager
+import Snap.Snaplet.CustomAuth.OAuth2.Internal.DPoP
+import Snap.Snaplet.CustomAuth.OAuth2.Internal.PAR
+import Snap.Snaplet.CustomAuth.OAuth2.Internal.UserInfo
 import Snap.Snaplet.CustomAuth.Types hiding (name)
 import Snap.Snaplet.CustomAuth.User (setUser, currentUser, recoverSession)
-import Snap.Snaplet.CustomAuth.Util (getStateName, getParamText, setFailure)
+import Snap.Snaplet.CustomAuth.Util (getStateName, getParamText, setFailure, getTruncatedCurrentTime, fromURIByteString )
 
 oauth2Init
   :: IAuthBackend u i e b
-  => OAuth2Settings u i e b
-  -> Initializer b (AuthManager u e b) (HashMap Text Provider)
-oauth2Init s = do
+  => AuthSettings
+  -> OAuth2Settings p u i e b
+  -> Initializer b (AuthManager u e b) (Map Text Provider)
+oauth2Init auths s = do
   cfg <- getSnapletUserConfig
   root <- getSnapletRootURL
   hostname <- liftIO $ C.require cfg "hostname"
   scheme <- liftIO $ C.lookupDefault "https" cfg "protocol"
-  names <- liftIO $ C.lookupDefault [] cfg "oauth2.providers"
+  let names = map fst $ enabledProviders s
   -- TODO: use discovery
   let makeProvider name = let
         name' = "oauth2." <> name
         lk = MaybeT . C.lookup cfg . (name' <>)
         lku n = lk n >>=
           MaybeT . return . hush . parseURI strictURIParserOptions . encodeUtf8
+        lkMaybe n = lift $
+          (hush . parseURI strictURIParserOptions . encodeUtf8 =<<) <$>
+          C.lookup cfg (name' <> n)
         callback = URI (Scheme scheme)
                    (Just $ Authority Nothing (Host hostname) Nothing)
                    ("/" <> root <> "/oauth2callback/" <> (encodeUtf8 name))
@@ -71,19 +82,26 @@ oauth2Init s = do
            <*> lk ".scope"
            <*> lku ".endpoint.identity"
            <*> lk ".identityField"
+           <*> lkMaybe ".endpoint.par"
+           <*> lkMaybe ".issuer"
+           <*> (lift $ C.lookupDefault False cfg $ name' <> ".dpop")
+           <*> lkMaybe ".endpoint.jwks"
            <*> (OAuth2
                 <$> lk ".clientId"
-                <*> (lift $ runMaybeT $ lk ".clientSecret")
+                <*> (lift . fmap (fromMaybe "") . runMaybeT $ lk ".clientSecret")
                 <*> lku ".endpoint.auth"
                 <*> lku ".endpoint.access"
-                <*> (pure $ Just callback))
+                <*> (pure callback))
+  providers <- liftIO $ catMaybes <$> mapM (runMaybeT . makeProvider) names
   addRoutes $ mapped._2 %~ (bracket s) $
     [ ("oauth2createaccount", oauth2CreateAccount s)
     , ("oauth2callback/:provider", oauth2Callback s)
     , ("oauth2login/:provider", redirectLogin)
     ]
-  liftIO $ M.fromList . map (\x -> (providerName x, x)) . catMaybes <$>
-    (mapM (runMaybeT . makeProvider) names)
+  maybe (pure ()) (\p -> error $ "JWK not provided while provider " <>
+                         T.unpack (providerName p) <> " uses PAR") $
+    guard (isNothing (auths ^. authJWK)) *> find (isJust . parEndpoint) providers
+  return . M.fromList $ map ((,) <$> providerName <*> id) providers
 
 redirectLogin
   :: Handler b (AuthManager u e b) ()
@@ -94,62 +112,82 @@ redirectLogin = do
   where
     toProvider p = do
       success <- redirectToProvider $ providerName p
-      if success then return () else pass
+      when (isNothing success) pass
+
+userProvider
+  :: OAuth2Settings p u i e b
+  -> Provider
+  -> p
+userProvider s provider =
+  fromJust $ lookup (providerName provider) $ enabledProviders s
 
 getRedirUrl
   :: Provider
-  -> Text
+  -> B.ByteString
+  -> B.ByteString
   -> URI
-getRedirUrl p token =
-  appendQueryParams [("state", encodeUtf8 token)
+getRedirUrl p token pkceChallenge =
+  appendQueryParams [("state", token)
+                    ,("code_challenge", pkceChallenge)
                     ,("scope", encodeUtf8 $ scope p)] $ authorizationUrl $ oauth p
 
 redirectToProvider
   :: Text
-  -> Handler b (AuthManager u e b) Bool
+  -> Handler b (AuthManager u e b) (Maybe RedirectError)
 redirectToProvider pName = do
-  maybe (return False) redirectToProvider' =<< M.lookup pName <$> gets providers
+  maybe (return $ Just UnknownProvider) redirectToProvider' =<< M.lookup pName <$> gets providers
 
 redirectToProvider'
   :: Provider
-  -> Handler b (AuthManager u e b) Bool
-redirectToProvider' provider = do
+  -> Handler b (AuthManager u e b) (Maybe RedirectError)
+redirectToProvider' provider = fmap (either Just (const Nothing)) $ runExceptT $ do
+  let oa = oauth provider
   -- Generate a state token and store it in SessionManager
-  store <- gets stateStore'
-  stamp <- liftIO $ (T.pack . show) <$> getCurrentTime
-  name <- getStateName
-  let randomChar i
-        | i < 10 = chr (i+48)
-        | i < 36 = chr (i+55)
-        | otherwise = chr (i+61)
-      randomText n = T.pack <$> replicateM n (randomChar <$> randomRIO (0,61))
-  token <- liftIO $ randomText 20
-  withTop' store $ do
-    setInSession name token
-    setInSession (name <> "_stamp") stamp
-    commitSession
-  let redirUrl = serializeURIRef' $ getRedirUrl provider token
-  redirect' redirUrl 303
+  store <- lift $ gets stateStore'
+  -- Some implementations may mind fractional iat/exp claims
+  curr <- liftIO getTruncatedCurrentTime
+  name <- (<> providerName provider) <$> lift getStateName
+  -- PKCE verifier, used in access token fetch
+  (token, pkceVerifier) <- liftIO genParams
+  -- PKCE challenge, sent in the initial redirect/PAR request
+  let pkceChallenge =
+        decodeLatin1 . URL.encodeUnpadded . B.pack .
+        ByteArray.unpack @(Crypto.Hash.Digest Crypto.Hash.SHA256) $
+        Crypto.Hash.hash pkceVerifier
+      baseParams =
+        [ ("response_type", "code")
+        , ("client_id", encodeUtf8 $ oauth2ClientId oa)
+        , ("redirect_uri", serializeURIRef' $ oauth2RedirectUri oa)
+        ]
+      stateParams =
+        [ ("state", token)
+        , ("code_challenge", encodeUtf8 pkceChallenge)
+        , ("code_challenge_method", "S256")
+        , ("scope", encodeUtf8 $ scope provider)
+        ]
 
-getUserInfo
-  :: MonadIO m
-  => Manager
-  -> Provider
-  -> AccessToken
-  -> ExceptT (Maybe ByteString) m Text
-getUserInfo mgr provider token = do
-  let endpoint = identityEndpoint provider
-  (withExceptT Just $ ExceptT $ liftIO $ authGetJSON mgr token endpoint) >>=
-    (maybe (throwE Nothing) pure . lookupProviderInfo)
+  lift $ withTop' store $ do
+    setInSession name $ decodeLatin1 token
+    setInSession (name <> "_stamp") . T.pack $ show curr
+    setInSession (name <> "_pkce_verifier") (decodeLatin1 $ pkceVerifier)
+    commitSession
+  lift . flip redirect' 303 =<< serializeURIRef' <$> maybe
+    -- Known statically
+    (lift . pure . appendQueryParams stateParams $ authorizationUrl oa)
+    -- PAR. Need to fetch parameter with POST
+    (parRequest provider curr (baseParams <> stateParams))
+    (parEndpoint provider)
   where
-    lookup' a b = maybeText =<< M.lookup a b
-    maybeText (String x) = Just x
-    maybeText _ = Nothing
-    lookupProviderInfo = lookup' (identityField provider)
+    genParams =
+      (,)
+      -- State token
+      <$> (URL.encodeUnpadded <$> getRandomBytes 20)
+      -- PKCE verifier
+      <*> (URL.encodeUnpadded <$> getRandomBytes 32)
 
 oauth2Callback
   :: IAuthBackend u i e b
-  => OAuth2Settings u i e b
+  => OAuth2Settings p u i e b
   -> Handler b (AuthManager u e b) ()
 oauth2Callback s = do
   provs <- gets providers
@@ -158,13 +196,13 @@ oauth2Callback s = do
 
 oauth2Callback'
   :: IAuthBackend u i e b
-  => OAuth2Settings u i e b
+  => OAuth2Settings p u i e b
   -> Provider
   -> Handler b (AuthManager u e b) ()
 oauth2Callback' s provider = do
-  name <- getStateName
+  name <- (<> providerName provider) <$> getStateName
+  mgr <- gets httpManager
   let ss = stateStore s
-      mgr = httpManager s
   res <- runExceptT $ do
     let param = oauth provider
     expiredStamp <- lift $ withTop' ss $
@@ -173,6 +211,8 @@ oauth2Callback' s provider = do
     when expiredStamp $ throwE ExpiredState
     hostState <- maybe (throwE StateNotStored) return =<<
       (lift $ withTop' ss $ getFromSession name)
+    pkceVerifier <- maybe (throwE StateNotStored) (pure . encodeUtf8) =<<
+      (lift $ withTop' ss $ getFromSession $ name <> "_pkce_verifier")
     providerState <- maybe (throwE StateNotReceived) return =<<
       (lift $ getParamText "state")
     when (hostState /= providerState) $ throwE BadState
@@ -183,21 +223,39 @@ oauth2Callback' s provider = do
     (maybe (throwE (IdExtractionFailed Nothing)) pure =<<
       (fmap ExchangeToken) <$> (lift $ getParamText "code")) >>=
     -- TODO: catch?
-      (liftIO . fetchAccessToken mgr param >=>
-       either (const $ throwE AccessTokenFetchError) pure >=>
-      -- TODO: get user id (sub) from idToken in token, if
-      -- available. Requires JWT handling.
-       withExceptT (IdExtractionFailed . ((hush . decodeUtf8' . toStrict) =<<)) .
-        getUserInfo (httpManager s) provider . accessToken)
+      (fetchAccessToken mgr param pkceVerifier >=>
+       withExceptT IdExtractionFailed .
+        getUserInfo mgr provider . accessToken)
   either (setFailure ((oauth2Failure s) SCallback) (Just $ providerName provider) .
           Right . Create . OAuth2Failure)
     (oauth2Success s provider) res
+  where
+    -- Add PKCE challenge to access token
+    fetchAccessToken :: Manager -> OAuth2 -> B.ByteString -> ExchangeToken -> ExceptT OAuth2Failure (Handler b (AuthManager u e b)) OAuth2Token
+    fetchAccessToken mgr oa pkceVerifier code
+      | dpopBoundAccessTokens provider = do
+        let (uri, body) = accessTokenUrl oa code
+        req <- liftIO (HTTP.requestFromURI $ fromURIByteString uri)
+        curr <- liftIO getTruncatedCurrentTime
+        clientAssertion <- withExceptT (DPoPRequestError . JOSEError) $ getClientAssertion provider curr
+        resp <- withExceptT DPoPRequestError $ dpopReq provider id HTTP.httpLbs $ req
+          & HTTP.urlEncodedBody
+          ([("code_verifier", pkceVerifier)
+           ,("client_assertion", clientAssertion)
+           ,("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer")
+           , ("client_id", encodeUtf8 $ oauth2ClientId oa)
+           ] <> body)
+        withExceptT AccessTokenFetchError $ except $ parseResponseFlexible $ HTTP.responseBody resp
+      | otherwise = withExceptT AccessTokenFetchError $
+        let (uri, body) = accessTokenUrl oa code
+        in doSimplePostRequest mgr oa uri (("code_verifier", pkceVerifier):body) >>=
+           except . parseResponseFlexible
 
 -- User has successfully completed OAuth2 login.  Get the stored
 -- intended action and perform it.
 oauth2Success
   :: IAuthBackend u i e b
-  => OAuth2Settings u i e b
+  => OAuth2Settings p u i e b
   -> Provider
   -> Text
   -> Handler b (AuthManager u e b) ()
@@ -219,7 +277,7 @@ oauth2Success s provider token = do
 
 doOauth2Login
   :: IAuthBackend u i e b
-  => OAuth2Settings u i e b
+  => OAuth2Settings p u i e b
   -> Provider
   -> Text
   -> Handler b (AuthManager u e b) ()
@@ -233,7 +291,7 @@ doOauth2Login s provider token = do
   where
     proceed = do
       res <- runExceptT $ do
-        usr <- ExceptT $ (oauth2Login s) (providerName provider) token
+        usr <- ExceptT $ (oauth2Login s) (userProvider s provider) token
         maybe (return ()) (lift . setUser) usr
         return usr
       either (setFailure ((oauth2Failure s) SLogin)
@@ -250,12 +308,12 @@ isExpiredStamp stamp = do
 
 prepareOAuth2Create'
   :: IAuthBackend u i e b
-  => OAuth2Settings u i e b
+  => OAuth2Settings p u i e b
   -> Provider
   -> Text
   -> Handler b (AuthManager u e b) (Either (Either e CreateFailure) i)
 prepareOAuth2Create' s provider token =
-  (prepareOAuth2Create s) (providerName provider) token >>=
+  ((prepareOAuth2Create s) (userProvider s provider) token) >>=
   either checkDuplicate (return . Right)
   where
     checkDuplicate e = do
@@ -265,7 +323,7 @@ prepareOAuth2Create' s provider token =
 -- Check that stored action is not too old and that user matches
 doResume
   :: IAuthBackend u i e b
-  => OAuth2Settings u i e b
+  => OAuth2Settings p u i e b
   -> Provider
   -> Text
   -> Text
@@ -280,7 +338,7 @@ doResume s provider token d = do
       (hush $ Data.ByteString.Base64.decode $ encodeUtf8 d)
     when (requireUser d' && isNothing user) $ throwE (Right AttachNotLoggedIn)
     u <- ExceptT $ return . either (Left . Left) Right =<<
-      (oauth2Check s) (providerName provider) token
+      (oauth2Check s) (userProvider s provider) token
     -- Compare current user with action's stored user
     when (userId /= actionUser d') $
      throwE (Right ActionUserMismatch)
@@ -302,7 +360,7 @@ doResume s provider token d = do
 -- requesting account creation afterwards.
 oauth2CreateAccount
   :: IAuthBackend u i e b
-  => OAuth2Settings u i e b
+  => OAuth2Settings p u i e b
   -> Handler b (AuthManager u e b) ()
 oauth2CreateAccount s = do
   store <- gets stateStore'

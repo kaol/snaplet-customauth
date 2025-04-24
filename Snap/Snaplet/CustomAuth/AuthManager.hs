@@ -13,9 +13,10 @@ module Snap.Snaplet.CustomAuth.AuthManager
   , OAuth2Settings(..)
   ) where
 
+import Crypto.JOSE.JWK (JWK)
 import Data.Binary (Binary)
 import Data.ByteString (ByteString)
-import Data.HashMap.Lazy (HashMap)
+import Data.Map (Map)
 import Data.Text (Text)
 import Data.Time.Clock (NominalDiffTime)
 import Network.HTTP.Client (Manager)
@@ -51,18 +52,26 @@ data AuthManager u e b = forall i. IAuthBackend u i e b => AuthManager
   , stateStore' :: SnapletLens (Snaplet b) SessionManager
   , oauth2Provider :: Maybe Text
   , authFailData :: Maybe (AuthFailure e)
-  , providers :: HashMap Text Provider
+  , providers :: Map Text Provider
+
+  -- Parameters used by OAuth2
+  , httpManager :: Manager
+  -- | Used for RFC 7523 JWT Bearer tokens when required
+  , jwk :: Maybe JWK
   }
 
-data OAuth2Settings u i e b = IAuthBackend u i e b => OAuth2Settings {
-    oauth2Check :: Text -> Text -> Handler b (AuthManager u e b) (Either e (Maybe ByteString))
-  , oauth2Login :: Text -> Text -> Handler b (AuthManager u e b) (Either e (Maybe u))
+data OAuth2Settings p u i e b = IAuthBackend u i e b => OAuth2Settings
+  { oauth2Check :: p -> Text -> Handler b (AuthManager u e b) (Either e (Maybe ByteString))
+  , oauth2Login :: p -> Text -> Handler b (AuthManager u e b) (Either e (Maybe u))
   , oauth2Failure :: OAuth2Stage -> Handler b (AuthManager u e b) ()
-  , prepareOAuth2Create :: Text -> Text -> Handler b (AuthManager u e b) (Either e i)
+  , prepareOAuth2Create :: p -> Text -> Handler b (AuthManager u e b) (Either e i)
   , oauth2AccountCreated :: u -> Handler b (AuthManager u e b) ()
   , oauth2LoginDone :: Handler b (AuthManager u e b) ()
   , resumeAction :: Text -> Text -> ByteString -> Handler b (AuthManager u e b) ()
   , stateStore :: SnapletLens (Snaplet b) SessionManager
-  , httpManager :: Manager
   , bracket :: Handler b (AuthManager u e b) () -> Handler b (AuthManager u e b) ()
+  -- | Enabled provider names along with user defined associated data.
+  -- These are passed directly to routes and don't need to be
+  -- represented in AuthManager data.
+  , enabledProviders :: [(Text, p)]
   }

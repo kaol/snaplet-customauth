@@ -11,12 +11,14 @@ module Snap.Snaplet.CustomAuth
   , defAuthSettings
   , authName
   , authCookieLifetime
+  , authJWK
   , createAccount
   , loginUser
   , logoutUser
   , recoverSession
   , combinedLoginRecover
   , setUser
+  , setUser'
   , currentUser
   , getAuthFailData
   , resetAuthFailData

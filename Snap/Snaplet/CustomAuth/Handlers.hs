@@ -10,23 +10,23 @@ module Snap.Snaplet.CustomAuth.Handlers where
 
 import Control.Error.Util hiding (err)
 import Control.Lens hiding (un)
+import Control.Monad
 import Control.Monad.Trans
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import Control.Monad.State
 import qualified Data.Configurator as C
-import qualified Data.HashMap.Lazy as M
+import qualified Data.Map as M
 import Data.Maybe
-import Data.Monoid
 import qualified Data.Text as T
 import Data.Text.Encoding
-import Snap
 import Data.Map
+import Snap
 
 import Snap.Snaplet.CustomAuth.Types hiding (name)
 import Snap.Snaplet.CustomAuth.AuthManager
 import Snap.Snaplet.CustomAuth.OAuth2.Internal
-import Snap.Snaplet.CustomAuth.User (setUser, recoverSession, currentUser, isSessionDefined)
+import Snap.Snaplet.CustomAuth.User (setUser, setUser', recoverSession, currentUser, isSessionDefined)
 import Snap.Snaplet.CustomAuth.Util (getParamText)
 
 setFailure'
@@ -62,7 +62,7 @@ logoutUser = do
   runMaybeT $ do
     ses <- MaybeT $ getCookie sesName
     lift $ expireCookie ses >> logout (decodeUtf8 $ cookieValue ses)
-  modify $ \mgr -> mgr { activeUser = Nothing }
+  setUser' Nothing
 
 -- Recover if session token is present.  Login if login+password are
 -- present.
@@ -120,7 +120,7 @@ createAccount = do
 
 authInit
   :: IAuthBackend u i e b
-  => Maybe (OAuth2Settings u i e b)
+  => Maybe (OAuth2Settings p u i e b)
   -> AuthSettings
   -> SnapletInit b (AuthManager u e b)
 authInit oa s = makeSnaplet (view authName s) "Custom auth" Nothing $ do
@@ -128,7 +128,7 @@ authInit oa s = makeSnaplet (view authName s) "Custom auth" Nothing $ do
   un <- liftIO $ C.lookupDefault "_login" cfg "userField"
   pn <- liftIO $ C.lookupDefault "_password" cfg "passwordField"
   scn <- liftIO $ C.lookupDefault "_session" cfg "sessionCookieName"
-  ps <- maybe (return M.empty) oauth2Init oa
+  ps <- maybe (return M.empty) (oauth2Init s) oa
   return $ AuthManager
     { activeUser = Nothing
     , cookieLifetime = s ^. authCookieLifetime
@@ -139,6 +139,8 @@ authInit oa s = makeSnaplet (view authName s) "Custom auth" Nothing $ do
     , oauth2Provider = Nothing
     , authFailData = Nothing
     , providers = ps
+    , httpManager = s ^. authHTTPManager
+    , jwk = s ^. authJWK
     }
 
 isLoggedIn :: UserData u => Handler b (AuthManager u e b) Bool

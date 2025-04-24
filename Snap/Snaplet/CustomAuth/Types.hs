@@ -5,13 +5,16 @@
 module Snap.Snaplet.CustomAuth.Types where
 
 import Control.Lens.TH
+import Crypto.JWT (JWTError)
+import Crypto.JOSE.JWK (JWK)
 import Data.Binary
 import Data.Binary.Instances ()
 import Data.ByteString
 import Data.Text (Text)
 import Data.Time.Clock (UTCTime, NominalDiffTime)
 import GHC.Generics (Generic)
-import Network.OAuth.OAuth2 (OAuth2)
+import Network.HTTP.Client (Manager)
+import Network.OAuth.OAuth2 (OAuth2, TokenResponseError)
 import URI.ByteString (URI)
 
 import Snap.Core (Cookie(..))
@@ -32,7 +35,7 @@ data CreateFailure =
   | DuplicateName
   | PasswordFailure PasswordFailure
   | OAuth2Failure OAuth2Failure
-  deriving (Eq, Show, Read)
+  deriving (Eq, Show)
 
 data OAuth2Failure =
     StateNotStored | StateNotReceived | ExpiredState | BadState
@@ -40,8 +43,9 @@ data OAuth2Failure =
   | AlreadyUser | AlreadyLoggedIn
   | IdentityInUse
   | ProviderError (Maybe Text)
-  | AccessTokenFetchError
-  deriving (Show, Read, Eq)
+  | DPoPRequestError RedirectError
+  | AccessTokenFetchError TokenResponseError
+  deriving (Show, Eq)
 
 data OAuth2ActionFailure =
   ActionTimeout | ActionDecodeError | ActionUserMismatch
@@ -60,6 +64,10 @@ data Provider = Provider
   , scope :: Text
   , identityEndpoint :: URI
   , identityField :: Text
+  , parEndpoint :: Maybe URI
+  , issuer :: Maybe URI
+  , dpopBoundAccessTokens :: Bool
+  , jwksEndpoint :: Maybe URI
   , oauth :: OAuth2
   }
   deriving (Show)
@@ -85,9 +93,21 @@ data AuthUser = AuthUser
 data AuthSettings = AuthSettings
   { _authName :: Text
   , _authCookieLifetime :: Maybe NominalDiffTime
+  -- | Needed by OAuth2 if using PAR
+  , _authJWK :: Maybe JWK
+  -- | Needed by OAuth2 if using PAR
+  , _authHTTPManager :: Manager
   }
+
+data RedirectError
+  = UnknownProvider
+  | JWKMissing
+  | DPoPKeyMissing
+  | PARRequestURIParseError
+  | JOSEError JWTError
+  deriving (Show, Eq)
 
 makeLenses ''AuthSettings
 
-defAuthSettings :: AuthSettings
-defAuthSettings = AuthSettings "auth" Nothing
+defAuthSettings :: Manager -> AuthSettings
+defAuthSettings = AuthSettings "auth" Nothing Nothing

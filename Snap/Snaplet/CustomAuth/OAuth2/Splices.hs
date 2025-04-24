@@ -7,7 +7,6 @@ import Control.Monad.Trans
 import Control.Monad.State
 import Data.Map.Syntax
 import Data.Maybe
-import Data.Monoid
 import Heist
 import Heist.Compiled
 import Snap
