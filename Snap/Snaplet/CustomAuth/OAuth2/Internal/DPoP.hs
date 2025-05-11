@@ -31,7 +31,7 @@ import Network.HTTP.Types.Method
 import Network.OAuth.OAuth2
 import URI.ByteString
 import Snap hiding (Method)
-import Snap.Snaplet.Session
+import Snap.Snaplet.Session2
 
 import Snap.Snaplet.CustomAuth.AuthManager hiding (jwk)
 import Snap.Snaplet.CustomAuth.Challenge

@@ -24,7 +24,8 @@ import Network.HTTP.Client (Manager)
 import Snap.Core
 import Snap.Snaplet
 import Snap.Snaplet.CustomAuth.Types
-import Snap.Snaplet.Session
+import Snap.Snaplet.Session2
+import Snap.Snaplet.Session2.SessionManager
 
 class UserData a where
   extractUser :: a -> AuthUser
@@ -49,7 +50,7 @@ data AuthManager u e b = forall i. IAuthBackend u i e b => AuthManager
   , sessionCookieName :: ByteString
   , userField :: ByteString
   , passwordField :: ByteString
-  , stateStore' :: SnapletLens (Snaplet b) SessionManager
+  , stateStore' :: SnapletLens (Snaplet b) (SessionManager b)
   , oauth2Provider :: Maybe Text
   , authFailData :: Maybe (AuthFailure e)
   , providers :: Map Text Provider
@@ -68,7 +69,7 @@ data OAuth2Settings p u i e b = IAuthBackend u i e b => OAuth2Settings
   , oauth2AccountCreated :: u -> Handler b (AuthManager u e b) ()
   , oauth2LoginDone :: Handler b (AuthManager u e b) ()
   , resumeAction :: Text -> Text -> ByteString -> Handler b (AuthManager u e b) ()
-  , stateStore :: SnapletLens (Snaplet b) SessionManager
+  , stateStore :: SnapletLens (Snaplet b) (SessionManager b)
   , bracket :: Handler b (AuthManager u e b) () -> Handler b (AuthManager u e b) ()
   -- | Enabled provider names along with user defined associated data.
   -- These are passed directly to routes and don't need to be

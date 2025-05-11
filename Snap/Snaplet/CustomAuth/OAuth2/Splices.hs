@@ -11,7 +11,7 @@ import Heist
 import Heist.Compiled
 import Snap
 import Snap.Snaplet.Heist
-import Snap.Snaplet.Session
+import Snap.Snaplet.Session2
 
 import Snap.Snaplet.CustomAuth.AuthManager
 import Snap.Snaplet.CustomAuth.Util
