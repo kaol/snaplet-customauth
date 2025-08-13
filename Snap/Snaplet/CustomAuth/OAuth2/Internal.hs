@@ -36,7 +36,7 @@ import Data.Time.Clock (UTCTime(utctDayTime), getCurrentTime, diffUTCTime)
 import Network.HTTP.Client (Manager)
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.URI
-import Network.OAuth.OAuth2 hiding (fetchAccessToken, error)
+import Network.OAuth.OAuth2 hiding (fetchAccessToken, error, scope)
 import Network.OAuth.OAuth2.AuthorizationRequest
 import Network.OAuth.OAuth2.TokenRequest
 import Prelude hiding (lookup)
